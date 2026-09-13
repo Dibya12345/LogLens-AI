@@ -3,10 +3,18 @@
 All notable changes to LogLens AI are documented here.
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## [0.4.2] - 2026-09-13
+
+### Other
+- Merge branch 'main' of github.com:ParasRajput810/LogLens-AI (afdf74c)
+
 ## [0.4.0] - 2026-09-12
 
 ### Features
 - Add supervised train/analyze --model; fix stdin ingestion (f9fb1bc)
+
+### Performance
+- Chunk embeddings; add bundled bgl model (6e829c3)
 
 ## [0.3.4] - 2026-09-07
 
