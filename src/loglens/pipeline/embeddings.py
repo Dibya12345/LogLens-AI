@@ -129,6 +129,17 @@ def _row_normalize(mat: np.ndarray) -> np.ndarray:
     return mat / norms
 
 
+def features_cached(entry) -> np.ndarray:
+    f = entry.metadata.get("_features")
+    if not isinstance(f, np.ndarray):
+        f = extract_features(entry)
+        try:
+            entry.metadata["_features"] = f
+        except Exception:
+            pass
+    return f
+
+
 def combine_blocks(text_block: np.ndarray,
                    feature_block: np.ndarray,
                    feature_weight: float) -> np.ndarray:
@@ -185,16 +196,12 @@ class EmbeddingEngine:
     def _embed_chunk(self, entries: List[LogEntry]) -> np.ndarray:
         normalized = self._get_normalized(entries)
         tfidf = self.vectorizer.transform(normalized).toarray().astype(np.float32)
-        feats = np.array([
-            e.metadata.get("_features")
-            if isinstance(e.metadata.get("_features"), np.ndarray)
-            else extract_features(e)
-            for e in entries
-        ], dtype=np.float32)
+        feats = np.array([features_cached(e) for e in entries], dtype=np.float32)
         return combine_blocks(tfidf, feats, self.feature_weight)
 
     def embed(self, entries: List[LogEntry],
-              chunk_size: int = 50_000) -> np.ndarray:
+              chunk_size: int = 50_000,
+              progress=None) -> np.ndarray:
         if not entries:
             return np.zeros((0, N_LOG_FEATURES), dtype=np.float32)
         if not self.fitted:
@@ -202,11 +209,16 @@ class EmbeddingEngine:
 
         n = len(entries)
         if n <= chunk_size:
-            return self._embed_chunk(entries)
+            v = self._embed_chunk(entries)
+            if progress:
+                progress(n, n)
+            return v
 
         parts = []
         for start in range(0, n, chunk_size):
             parts.append(self._embed_chunk(entries[start:start + chunk_size]))
+            if progress:
+                progress(min(start + chunk_size, n), n)
         return np.vstack(parts)
 
 

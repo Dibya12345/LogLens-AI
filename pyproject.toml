@@ -73,6 +73,7 @@ path = "src/loglens/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/loglens"]
+artifacts = ["src/loglens/assets/*.pkl"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

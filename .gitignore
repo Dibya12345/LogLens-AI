@@ -35,3 +35,4 @@ tests/fixtures/sample.log
 Thumbs.db
 
 benchmarks/*.logdatasets/
+datasets/

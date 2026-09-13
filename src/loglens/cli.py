@@ -142,6 +142,7 @@ def analyze(
     turbo: bool = typer.Option(False, "--turbo", help="Fast multiprocess scan for huge files (byte-range + template dedup, skips embeddings)"),
     explain: int = typer.Option(0, "--explain", help="Show top-N scored entries (flagged or not) with score and reasons — for debugging near-misses"),
     model: str = typer.Option("", "--model", help="Path to a trained model from `loglens train` — uses the supervised head instead of the raw threshold"),
+    no_model: bool = typer.Option(False, "--no-model", help="Ignore the bundled default model and use pure unsupervised detection"),
     rca: bool = typer.Option(False, "--rca", help="AI root-cause analysis of detected anomalies (requires LLM key: openai | azure | groq)"),
     provider: str = typer.Option("", "--provider", help="LLM provider: openai | azure | groq (or env LOGLENS_LLM_PROVIDER)"),
     llm_model: str = typer.Option("", "--llm-model", help="LLM model / Azure deployment name (or env LOGLENS_LLM_MODEL)"),
@@ -271,7 +272,18 @@ def analyze(
             )
             vectors = engine.embed_templates(entries, registry)
         else:
-            vectors = engine.embed(entries)
+            # Large inputs embed in chunks — show a live bar so it never looks hung.
+            if len(entries) > 50_000:
+                emb_prog = LiveProgress(total=len(entries))
+                emb_prog.start()
+                try:
+                    vectors = engine.embed(
+                        entries,
+                        progress=lambda done, total: emb_prog.update(done))
+                finally:
+                    emb_prog.stop()
+            else:
+                vectors = engine.embed(entries)
         console.print(
             f"[bold cyan][LogLens][/bold cyan] Embeddings ready: "
             f"[bold green]shape={vectors.shape}[/bold green]"
@@ -281,20 +293,38 @@ def analyze(
         normal, anomalies, labels = detect_anomalies(entries, vectors)
         summary = cluster_summary(labels)
 
-        # --- supervised override: re-flag using a trained model if provided ---
-        if model:
+        # --- supervised: explicit model, else bundled default, else unsupervised ---
+        model_path = model
+        used_default = False
+        if not model and not no_model:
+            try:
+                from importlib.resources import files
+                cand = files("loglens") / "assets" / "default_model.pkl"
+                if cand.is_file():
+                    model_path = str(cand)
+                    used_default = True
+            except Exception:
+                model_path = ""
+
+        if model_path:
             import numpy as _np
             from loglens.pipeline.benchmark import (SupervisedHead,
                                                     build_feature_matrix)
             try:
-                head = SupervisedHead.load(model)
+                head = SupervisedHead.load(model_path)
             except Exception as exc:
-                console.print(f"[bold red]Could not load model '{model}': {exc}[/bold red]")
+                console.print(f"[bold red]Could not load model '{model_path}': {exc}[/bold red]")
                 raise typer.Exit(code=1)
-            console.print(
-                f"[bold cyan][LogLens][/bold cyan] Model:      "
-                f"[magenta]{model}[/magenta] [dim](supervised head)[/dim]"
-            )
+            if used_default:
+                console.print(
+                    "[bold cyan][LogLens][/bold cyan] Model:      "
+                    "[magenta]bundled default[/magenta] "
+                    "[dim](trained on infra logs; `loglens train` for your own; "
+                    "--no-model to disable)[/dim]")
+            else:
+                console.print(
+                    f"[bold cyan][LogLens][/bold cyan] Model:      "
+                    f"[magenta]{model_path}[/magenta] [dim](supervised head)[/dim]")
             _scores = _np.array(
                 [getattr(e, "anomaly_score", 0.0) for e in entries], dtype=float)
             _preds = head.predict(build_feature_matrix(entries, _scores))

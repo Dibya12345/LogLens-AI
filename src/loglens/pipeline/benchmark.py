@@ -16,7 +16,7 @@ from loglens.models import LogEntry
 from loglens.pipeline.detector import (
     DetectorConfig, detect, get_severity,
 )
-from loglens.pipeline.embeddings import EmbeddingEngine, extract_features
+from loglens.pipeline.embeddings import EmbeddingEngine, extract_features, features_cached
 from loglens.pipeline.parser import detect_format, parse_line
 
 
@@ -162,7 +162,7 @@ def build_feature_matrix(entries: Sequence[LogEntry],
                          scores: np.ndarray) -> np.ndarray:
     sev = np.array([get_severity(e.level) for e in entries],
                    dtype=np.float32) / 7.0
-    logf = np.array([extract_features(e) for e in entries], dtype=np.float32)
+    logf = np.array([features_cached(e) for e in entries], dtype=np.float32)
     return np.column_stack([scores.astype(np.float32), sev, logf])
 
 
@@ -192,7 +192,7 @@ class SupervisedHead:
         return self.clf.predict_proba(X)[:, 1]
 
     def save(self, path: str) -> None:
-        joblib.dump({"clf": self.clf, "version": 1}, path)
+        joblib.dump({"clf": self.clf, "version": 1}, path, compress=3)
 
     @classmethod
     def load(cls, path: str) -> "SupervisedHead":
