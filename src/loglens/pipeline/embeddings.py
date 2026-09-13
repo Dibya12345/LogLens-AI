@@ -182,23 +182,32 @@ class EmbeddingEngine:
                     if self._learner else None)
         return [normalize_message(e.message, synonyms) for e in entries]
 
-    def embed(self, entries: List[LogEntry]) -> np.ndarray:
-        if not entries:
-            return np.zeros((0, N_LOG_FEATURES), dtype=np.float32)
-        if not self.fitted:
-            self.fit(entries)
-
+    def _embed_chunk(self, entries: List[LogEntry]) -> np.ndarray:
         normalized = self._get_normalized(entries)
         tfidf = self.vectorizer.transform(normalized).toarray().astype(np.float32)
-
         feats = np.array([
             e.metadata.get("_features")
             if isinstance(e.metadata.get("_features"), np.ndarray)
             else extract_features(e)
             for e in entries
         ], dtype=np.float32)
-
         return combine_blocks(tfidf, feats, self.feature_weight)
+
+    def embed(self, entries: List[LogEntry],
+              chunk_size: int = 50_000) -> np.ndarray:
+        if not entries:
+            return np.zeros((0, N_LOG_FEATURES), dtype=np.float32)
+        if not self.fitted:
+            self.fit(entries)
+
+        n = len(entries)
+        if n <= chunk_size:
+            return self._embed_chunk(entries)
+
+        parts = []
+        for start in range(0, n, chunk_size):
+            parts.append(self._embed_chunk(entries[start:start + chunk_size]))
+        return np.vstack(parts)
 
 
     def embed_templates(self, entries: List[LogEntry],
