@@ -1,0 +1,49 @@
+name: Publish to PyPI
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Git tag to publish (e.g. v0.8.0). Leave blank for latest commit."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Show what will be published
+        run: |
+          pip install hatch
+          echo "Publishing version: $(hatch version)  (from ref: ${{ inputs.tag || github.ref }})"
+
+      - name: Build distributions
+        run: |
+          pip install build
+          rm -rf dist
+          python -m build
+
+      - name: Check + publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          if [ -z "$TWINE_PASSWORD" ]; then
+            echo "::error:: PYPI_API_TOKEN secret not set — add it in Settings → Secrets → Actions"
+            exit 1
+          fi
+          pip install twine
+          twine check dist/*
+          twine upload --skip-existing dist/*
