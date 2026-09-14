@@ -3,6 +3,18 @@
 All notable changes to LogLens AI are documented here.
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## [0.8.0] - 2026-09-14
+
+### Other
+- Merge branch 'main' of github.com:ParasRajput810/LogLens-AI (47f1ce6)
+
+## [0.6.0] - 2026-09-14
+
+### Features
+- Bundle default model with auto-load; compress models; cache features (d3431e7)
+- Bundle default model with auto-load; compress models; cache features (502d5c4)
+- Bundle default model with auto-load; compress models; cache features (4411d45)
+
 ## [0.4.2] - 2026-09-13
 
 ### Other
