@@ -8,6 +8,6 @@ class AsyncFileReader:
         self.path = path
 
     async def __aiter__(self) -> AsyncIterator[str]:
-        async with aiofiles.open(self.path, mode="r", errors="replace") as f:
+        async with aiofiles.open(self.path, mode="r", encoding="utf-8", errors="replace") as f:
             async for line in f:
-                yield line.rstrip("\n")
+                yield line.rstrip("\r\n")

@@ -58,7 +58,7 @@ class AsyncCommandReader:
             try:
                 if stream is not None:
                     async for raw in stream:
-                        line = raw.decode("utf-8", "replace").rstrip("\n")
+                        line = raw.decode("utf-8", "replace").rstrip("\r\n")
                         if is_stderr:
                             self._stderr_tail.append(line)
                             if len(self._stderr_tail) > 20:

@@ -8,26 +8,39 @@ from rich.panel import Panel
 from rich.markdown import Markdown
 
 from loglens.models import LogEntry
-from loglens.pipeline.ingestion import stream_lines, AsyncCommandReader, CommandError
-from loglens.pipeline.parser import detect_format, parse_line
-from loglens.pipeline.worker import run_worker_pool
 from loglens.output.terminal import LiveProgress
-from loglens.output.html_report import render_html_report
-from loglens.pipeline.detector import detect_anomalies, cluster_summary, DetectorConfig
-from loglens.pipeline.benchmark import run_benchmark
-from loglens.pipeline.speedbench import bench_file, to_markdown
-from loglens.pipeline.turbo import scan_file as turbo_scan
-from loglens.pipeline.templates import TemplateRegistry
-from loglens.pipeline.grouping import group_anomalies, group_summaries
-from loglens.pipeline.embeddings import EmbeddingEngine
-from loglens.llm import LLMConfig, LLMError, run_rca, run_ask, save_report
-from loglens.live import LiveDetector
 from loglens import __version__
 
-try:
-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
-except ImportError:
-    DeepEmbeddingEngine = None
+_LOADED = False
+
+
+def _load():
+    """Import the heavy pipeline symbols once, on first real command use."""
+    global _LOADED
+    if _LOADED:
+        return
+    g = globals()
+    from loglens.pipeline.ingestion import stream_lines, AsyncCommandReader, CommandError
+    from loglens.pipeline.parser import detect_format, parse_line
+    from loglens.pipeline.worker import run_worker_pool
+    from loglens.output.html_report import render_html_report
+    from loglens.pipeline.detector import detect_anomalies, cluster_summary, DetectorConfig
+    from loglens.pipeline.benchmark import run_benchmark
+    from loglens.pipeline.speedbench import bench_file, to_markdown
+    from loglens.pipeline.turbo import scan_file as turbo_scan
+    from loglens.pipeline.templates import TemplateRegistry
+    from loglens.pipeline.grouping import group_anomalies, group_summaries
+    from loglens.pipeline.embeddings import EmbeddingEngine
+    try:
+        from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
+    except ImportError:
+        DeepEmbeddingEngine = None
+    from loglens.llm import LLMConfig, LLMError, run_rca, run_ask, save_report
+    from loglens.live import LiveDetector
+    for k, v in list(locals().items()):
+        if k != "g":
+            g[k] = v
+    _LOADED = True
 
 app = typer.Typer(
     name="loglens",
@@ -150,12 +163,13 @@ def analyze(
     rca_out: str = typer.Option("", "--rca-out", help="Save the RCA report to a markdown file (e.g. rca_report.md)"),
     html_out: str = typer.Option("", "--html", help="Save a standalone HTML report (e.g. report.html). Includes RCA if --rca is set."),
 ):
+    _load()
     async def _run():
 
         if turbo:
             console.print(f"\n[bold cyan][LogLens][/bold cyan] Source: [yellow]{source}[/yellow]")
             console.print("[bold cyan][LogLens][/bold cyan] Mode: [bold magenta]⚡ Turbo (parallel scan)[/bold magenta]")
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             res = await loop.run_in_executor(
                 None,
                 functools.partial(turbo_scan, source, workers=(workers if workers else None)),
@@ -501,6 +515,7 @@ def ask(
     llm_model: str = typer.Option("", "--llm-model", help="LLM model / Azure deployment name"),
     api_key: str = typer.Option("", "--api-key", help="LLM API key (prefer env LOGLENS_LLM_API_KEY)"),
 ):
+    _load()
 
     async def _run():
         console.print(f"\n[bold cyan][LogLens][/bold cyan] Source: [yellow]{source}[/yellow]")
@@ -579,6 +594,7 @@ def benchmark(
     supervised: bool = typer.Option(False, "--supervised", help="Train + eval supervised (RandomForest) head"),
     min_f1: float = typer.Option(None, "--min-f1", help="Fail (exit 1) if baseline F1 below this"),
 ):
+    _load()
     console.print(f"\n[bold cyan][LogLens][/bold cyan] Benchmarking: [yellow]{dataset}[/yellow] "
                   f"([dim]format={fmt}[/dim])")
 
@@ -684,6 +700,7 @@ def bench(
     workers: int = typer.Option(4, "--workers"),
     out: str = typer.Option(None, "--out", help="Write markdown results to this file"),
 ):
+    _load()
     mode_list = [m.strip() for m in modes.split(",") if m.strip()]
     console.print(f"\n[bold cyan][LogLens][/bold cyan] Benchmarking [yellow]{source}[/yellow] — modes: {mode_list}")
     results = bench_file(source, mode_list, workers=workers)
@@ -697,7 +714,7 @@ def bench(
     console.print(table)
 
     if out:
-        with open(out, "w") as f:
+        with open(out, "w", encoding="utf-8") as f:
             f.write(to_markdown(results, source))
         console.print(f"[bold cyan][LogLens][/bold cyan] Results saved: [green]{out}[/green]")
 
@@ -714,6 +731,7 @@ def watch(
     rca_out: str = typer.Option(None, "--rca-out", help="Also save the RCA as a markdown file"),
     html_report: str = typer.Option(None, "--html-report", help="After stopping, write a shareable HTML dashboard of the session"),
 ):
+    _load()
 
     det = LiveDetector(window=window, mode=mode, sensitivity=sensitivity,
                        threshold=threshold)

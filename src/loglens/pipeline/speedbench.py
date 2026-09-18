@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-import resource
 import sys
 import time
+try:
+    import resource           
+except ImportError:
+    resource = None
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -23,6 +26,8 @@ class BenchResult:
 
 
 def _peak_mb() -> float:
+    if resource is None:           
+        return 0.0
     ru = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     return ru / 1024 if sys.platform != "darwin" else ru / (1024 * 1024)
 

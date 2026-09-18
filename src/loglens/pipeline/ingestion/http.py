@@ -10,4 +10,4 @@ class AsyncHTTPReader:
             async with session.get(self.url) as response:
                 response.raise_for_status()
                 async for line in response.content:
-                    yield line.decode("utf-8", errors="replace").rstrip("\n")
+                    yield line.decode("utf-8", errors="replace").rstrip("\r\n")

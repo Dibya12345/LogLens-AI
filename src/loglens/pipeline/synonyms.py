@@ -178,7 +178,7 @@ class SynonymLearner:
         if not self.use_cache:
             return False
         try:
-            with open(self._cache_path) as f:
+            with open(self._cache_path, encoding="utf-8") as f:
                 data = json.load(f)
             if (data.get("version") == self.CACHE_VERSION
                     and data.get("corpus_hash") == fingerprint):
@@ -198,7 +198,7 @@ class SynonymLearner:
                        "learned": self.learned}
             fd, tmp = tempfile.mkstemp(
                 dir=os.path.dirname(self._cache_path), suffix=".tmp")
-            with os.fdopen(fd, "w") as f:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump(payload, f, indent=2)
             os.replace(tmp, self._cache_path)     
         except OSError as e:

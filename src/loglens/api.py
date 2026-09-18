@@ -186,7 +186,7 @@ def analyze(source: Optional[str] = None, *,
         entries, detected = _parse(lines, fmt)
         return analyze_entries(entries, cfg, baseline, fmt or detected)
     if cmd is None and not _needs_loop(source):
-        with open(source, "r", errors="replace") as f:
+        with open(source, "r", encoding="utf-8", errors="replace") as f:
             entries, detected = _parse((ln.rstrip("\n") for ln in f), fmt)
         return analyze_entries(entries, cfg, baseline, fmt or detected)
 

@@ -69,7 +69,7 @@ def _process_range(args) -> Dict[Tuple[str, str], list]:
     path, start, end = args
     local: Dict[Tuple[str, str], list] = {}
     fmt: Optional[str] = None
-    with open(path, "r", errors="replace") as f:
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
         f.seek(start)
         pos = start
         for line in f:
@@ -158,11 +158,21 @@ def scan_file(path: str, workers: Optional[int] = None,
     if w == 1:
         merged = _process_range((path, chunks[0][0], chunks[0][1]))
     else:
-        import multiprocessing as mp
-        with mp.Pool(w) as pool:
-            for local in pool.imap_unordered(
-                    _process_range, [(path, s, e) for s, e in chunks]):
-                for k, v in local.items():
+        try:
+            import multiprocessing as mp
+            with mp.Pool(w) as pool:
+                for local in pool.imap_unordered(
+                        _process_range, [(path, s, e) for s, e in chunks]):
+                    for k, v in local.items():
+                        slot = merged.get(k)
+                        if slot is None:
+                            merged[k] = v
+                        else:
+                            slot[0] += v[0]
+        except Exception:
+            merged = {}
+            for s, e in chunks:
+                for k, v in _process_range((path, s, e)).items():
                     slot = merged.get(k)
                     if slot is None:
                         merged[k] = v
