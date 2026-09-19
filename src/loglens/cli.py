@@ -164,6 +164,14 @@ def analyze(
     html_out: str = typer.Option("", "--html", help="Save a standalone HTML report (e.g. report.html). Includes RCA if --rca is set."),
 ):
     _load()
+
+    from loglens.pipeline.filetype import check_source, InvalidSourceError
+    try:
+        check_source(source)
+    except InvalidSourceError as _e:
+        console.print(f"[bold red][LogLens][/bold red] {_e}")
+        raise typer.Exit(code=1)
+
     async def _run():
 
         if turbo:

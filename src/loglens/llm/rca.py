@@ -4,7 +4,9 @@ from dataclasses import dataclass, field
 from typing import List, Sequence
 
 from loglens.models import LogEntry
-from loglens.llm.providers import LLMClient, LLMConfig, TokenUsage
+from loglens.llm.client import LLMClient
+from loglens.llm.config import LLMConfig
+from loglens.llm.transport import TokenUsage
 
 MAX_ANOMALY_LINES = 40       
 MAX_CONTEXT_LINES = 20      
@@ -84,16 +86,16 @@ def run_rca(
         )
     context = build_rca_context(anomalies, scores, reasons, context_lines, source_name)
     client = LLMClient(config)
-    report = client.chat([
+    resp = client.chat([
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": context},
     ])
     return RCAResult(
-        report=report,
+        report=resp.content,
         provider=config.provider,
         model=config.model,
         anomalies_sent=min(len(anomalies), MAX_ANOMALY_LINES),
-        usage=client.last_usage,
+        usage=resp.usage,
     )
 
 
@@ -113,16 +115,16 @@ def run_ask(
         )
     context = build_rca_context(anomalies, scores, reasons, source_name=source_name)
     client = LLMClient(config)
-    answer = client.chat([
+    resp = client.chat([
         {"role": "system", "content": ASK_SYSTEM_PROMPT},
         {"role": "user", "content": f"{context}\n\n--- QUESTION ---\n{question}"},
     ])
     return RCAResult(
-        report=answer,
+        report=resp.content,
         provider=config.provider,
         model=config.model,
         anomalies_sent=min(len(anomalies), MAX_ANOMALY_LINES),
-        usage=client.last_usage,
+        usage=resp.usage,
     )
 
 
