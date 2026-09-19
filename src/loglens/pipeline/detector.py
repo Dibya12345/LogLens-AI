@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 from sklearn.cluster import DBSCAN
@@ -13,43 +13,44 @@ from sklearn.preprocessing import normalize
 from loglens.models import LogEntry
 from loglens.pipeline.templates import TemplateRegistry, parse_timestamp
 
-LEVEL_SEVERITY: Dict[str, int] = {
+LEVEL_SEVERITY: dict[str, int] = {
     "EMERGENCY": 0,
-    "EMERG":     0,
-    "PANIC":     0,
-    "ALERT":     1,
-    "FATAL":     1,
-    "CRITICAL":  2,
-    "CRIT":      2,
-    "ERROR":     3,
-    "ERR":       3,
-    "WARN":      4,
-    "WARNING":   4,
-    "NOTICE":    5,
-    "INFO":      6,
-    "DEBUG":     7,
-    "TRACE":     7,
+    "EMERG": 0,
+    "PANIC": 0,
+    "ALERT": 1,
+    "FATAL": 1,
+    "CRITICAL": 2,
+    "CRIT": 2,
+    "ERROR": 3,
+    "ERR": 3,
+    "WARN": 4,
+    "WARNING": 4,
+    "NOTICE": 5,
+    "INFO": 6,
+    "DEBUG": 7,
+    "TRACE": 7,
 }
 DEFAULT_SEVERITY = 6
 HARD_FLAG_SEVERITY = 1
 
-SEVERITY_BASE: Dict[int, float] = {
-    0: 1.0, 1: 1.0,           # hard-flagged anyway
-    2: 0.70,                  # CRITICAL
-    3: 0.55,                  # ERROR  (graded down: routine errors are common)
-    4: 0.42,                  # WARN
-    5: 0.08,                  # NOTICE
-    6: 0.0,                   # INFO
-    7: 0.0,                   # DEBUG/TRACE
+SEVERITY_BASE: dict[int, float] = {
+    0: 1.0,
+    1: 1.0,  # hard-flagged anyway
+    2: 0.70,  # CRITICAL
+    3: 0.55,  # ERROR  (graded down: routine errors are common)
+    4: 0.42,  # WARN
+    5: 0.08,  # NOTICE
+    6: 0.0,  # INFO
+    7: 0.0,  # DEBUG/TRACE
 }
 
 
-CHRONIC_SHARE = 0.15          
-CHRONIC_MIN_COUNT = 25        
-CHRONIC_SPREAD = 0.50         
-CHRONIC_DAMP = 0.45      
+CHRONIC_SHARE = 0.15
+CHRONIC_MIN_COUNT = 25
+CHRONIC_SPREAD = 0.50
+CHRONIC_DAMP = 0.45
 
-GLOBAL_RARE_SHARE = 0.005     
+GLOBAL_RARE_SHARE = 0.005
 GLOBAL_RARE_BONUS = 0.18
 OUTLIER_Z_EXEMPT = 4.0
 OUTLIER_DIST_FLOOR = 0.08
@@ -58,10 +59,10 @@ SOFTCAP_START = 0.80
 SOFTCAP_TAU = 0.60
 
 
-HISTORY_HEAD = 0.25          
-HISTORY_MIN_COUNT = 5         
-HISTORY_MIN_SPAN = 0.40       
-HISTORY_MAX_DAMP = 0.45       
+HISTORY_HEAD = 0.25
+HISTORY_MIN_COUNT = 5
+HISTORY_MIN_SPAN = 0.40
+HISTORY_MAX_DAMP = 0.45
 
 
 def volume_confidence(n: int, k: float) -> float:
@@ -74,25 +75,56 @@ def soft_cap(raw: float) -> float:
     if raw <= SOFTCAP_START:
         return max(0.0, raw)
     return SOFTCAP_START + (1.0 - SOFTCAP_START) * (
-        1.0 - math.exp(-(raw - SOFTCAP_START) / SOFTCAP_TAU))
+        1.0 - math.exp(-(raw - SOFTCAP_START) / SOFTCAP_TAU)
+    )
 
 
 CATASTROPHE_PATTERNS = [
-    r"kernel panic", r"\bpanic\b", r"segfault", r"sigsegv",
-    r"data loss", r"\bcorrupt\w*", r"split[- ]brain", r"power failure",
-    r"cascading failure", r"unrecoverable", r"security breach",
-    r"\bhalted\b", r"double fault", r"filesystem read-?only",
+    r"kernel panic",
+    r"\bpanic\b",
+    r"segfault",
+    r"sigsegv",
+    r"data loss",
+    r"\bcorrupt\w*",
+    r"split[- ]brain",
+    r"power failure",
+    r"cascading failure",
+    r"unrecoverable",
+    r"security breach",
+    r"\bhalted\b",
+    r"double fault",
+    r"filesystem read-?only",
 ]
 _CATASTROPHE_RE = re.compile("|".join(CATASTROPHE_PATTERNS), re.IGNORECASE)
 
 FAILURE_PATTERNS = [
-    r"fail(?:ed|ure|ing)?\b", r"error", r"exception", r"timed?[ _-]?out",
-    r"exhaust(?:ed|ion)", r"declin(?:ed|e)\b", r"denied", r"refus(?:ed|al)",
-    r"reject(?:ed|ion)", r"crash(?:ed|ing)?", r"abort(?:ed|ing)?",
-    r"out[ _-]?of[ _-]?memory", r"\boom\b", r"unreachable", r"unavailable",
-    r"dead[ -]?lock", r"\bcannot\b", r"\bcan't\b", r"could not",
-    r"unable to", r"no space left", r"enospc", r"\bexpired\b", r"\blost\b",
-    r"too many", r"\bdown\b", r"not responding",
+    r"fail(?:ed|ure|ing)?\b",
+    r"error",
+    r"exception",
+    r"timed?[ _-]?out",
+    r"exhaust(?:ed|ion)",
+    r"declin(?:ed|e)\b",
+    r"denied",
+    r"refus(?:ed|al)",
+    r"reject(?:ed|ion)",
+    r"crash(?:ed|ing)?",
+    r"abort(?:ed|ing)?",
+    r"out[ _-]?of[ _-]?memory",
+    r"\boom\b",
+    r"unreachable",
+    r"unavailable",
+    r"dead[ -]?lock",
+    r"\bcannot\b",
+    r"\bcan't\b",
+    r"could not",
+    r"unable to",
+    r"no space left",
+    r"enospc",
+    r"\bexpired\b",
+    r"\blost\b",
+    r"too many",
+    r"\bdown\b",
+    r"not responding",
 ]
 _FAILURE_RE = re.compile("|".join(FAILURE_PATTERNS), re.IGNORECASE)
 
@@ -101,11 +133,11 @@ def get_severity(level: str) -> int:
     return LEVEL_SEVERITY.get(level.upper(), DEFAULT_SEVERITY)
 
 
-def otsu_threshold(scores: np.ndarray,
-                   lo: float = 0.35, hi: float = 0.95,
-                   bins: int = 64) -> Optional[float]:
+def otsu_threshold(
+    scores: np.ndarray, lo: float = 0.35, hi: float = 0.95, bins: int = 64
+) -> float | None:
     s = np.asarray(scores, dtype=np.float64)
-    s = s[(s > 0.0) & (s < 1.0)]          # 0/1 are already hard-decided
+    s = s[(s > 0.0) & (s < 1.0)]  # 0/1 are already hard-decided
     if len(s) < 20:
         return None
     hist, edges = np.histogram(s, bins=bins, range=(0.0, 1.0))
@@ -127,12 +159,12 @@ def otsu_threshold(scores: np.ndarray,
 
 @dataclass
 class DetectorConfig:
-    eps: Optional[float] = None
+    eps: float | None = None
     min_samples: int = 4
     rare_pct: float = 0.02
     rare_min: int = 3
     flag_threshold: float = 0.70
-    auto_threshold: bool = False     
+    auto_threshold: bool = False
     safe_rarity_damp: float = 0.5
     burst_window: float = 60.0
     burst_factor: float = 4.0
@@ -147,7 +179,7 @@ class DetectorConfig:
     rarity_confidence_k: float = 0.0
 
     @classmethod
-    def from_sensitivity(cls, sensitivity: str = "normal", **overrides) -> "DetectorConfig":
+    def from_sensitivity(cls, sensitivity: str = "normal", **overrides) -> DetectorConfig:
         thresholds = {"low": 0.80, "normal": 0.70, "high": 0.60}
         cfg = cls(flag_threshold=thresholds.get(sensitivity, 0.70))
         for k, v in overrides.items():
@@ -163,9 +195,9 @@ class AnomalyGroup:
     representative: LogEntry
     count: int
     score: float
-    reasons: List[str]
-    services: List[str]
-    entry_indices: List[int]
+    reasons: list[str]
+    services: list[str]
+    entry_indices: list[int]
 
 
 @dataclass
@@ -175,7 +207,7 @@ class PatternInfo:
     representative: LogEntry
     count: int
     share: float
-    services: List[str]
+    services: list[str]
     flagged: bool
 
 
@@ -184,24 +216,24 @@ class DetectionResult:
     entries: Sequence[LogEntry]
     scores: np.ndarray
     flagged: np.ndarray
-    reasons: List[List[str]]
+    reasons: list[list[str]]
     labels: np.ndarray
-    groups: List[AnomalyGroup]
-    patterns: List[PatternInfo]
+    groups: list[AnomalyGroup]
+    patterns: list[PatternInfo]
     incident_mode: bool
     incident_note: str
-    meta: Dict[str, object] = field(default_factory=dict)
+    meta: dict[str, object] = field(default_factory=dict)
 
     @property
-    def anomalies(self) -> List[LogEntry]:
+    def anomalies(self) -> list[LogEntry]:
         idx = np.argsort(-self.scores, kind="stable")
         return [self.entries[i] for i in idx if self.flagged[i]]
 
     @property
-    def normal(self) -> List[LogEntry]:
-        return [e for e, f in zip(self.entries, self.flagged) if not f]
+    def normal(self) -> list[LogEntry]:
+        return [e for e, f in zip(self.entries, self.flagged, strict=False) if not f]
 
-    def summary(self) -> Dict[str, object]:
+    def summary(self) -> dict[str, object]:
         n_clusters = len(set(self.labels.tolist()) - {-1})
         return {
             "entries": len(self.entries),
@@ -213,8 +245,7 @@ class DetectionResult:
         }
 
 
-def estimate_eps(vectors: np.ndarray, k: int = 4,
-                 lo: float = 0.15, hi: float = 0.90) -> float:
+def estimate_eps(vectors: np.ndarray, k: int = 4, lo: float = 0.15, hi: float = 0.90) -> float:
     n = len(vectors)
     if n <= k + 1:
         return 0.5
@@ -235,8 +266,7 @@ def estimate_eps(vectors: np.ndarray, k: int = 4,
     return float(np.clip(eps if eps > 0 else 0.5, lo, hi))
 
 
-def detect_bursts(entries: Sequence[LogEntry], cfg: DetectorConfig
-                  ) -> Tuple[np.ndarray, str]:
+def detect_bursts(entries: Sequence[LogEntry], cfg: DetectorConfig) -> tuple[np.ndarray, str]:
     n = len(entries)
     burst = np.zeros(n, dtype=bool)
     times = np.array([parse_timestamp(e.timestamp) or np.nan for e in entries])
@@ -249,7 +279,7 @@ def detect_bursts(entries: Sequence[LogEntry], cfg: DetectorConfig
 
     severities = np.array([get_severity(e.level) for e in entries])
     for sev_level in np.unique(severities):
-        if sev_level > 4:              # only WARN and worse can "burst"
+        if sev_level > 4:  # only WARN and worse can "burst"
             continue
         mask = (severities == sev_level) & valid
         if mask.sum() < cfg.burst_min:
@@ -268,15 +298,18 @@ def detect_bursts(entries: Sequence[LogEntry], cfg: DetectorConfig
     return burst, ""
 
 
-def detect(entries: Sequence[LogEntry],
-           embeddings: np.ndarray,
-           cfg: Optional[DetectorConfig] = None,
-           baseline: Optional[dict] = None) -> DetectionResult:
+def detect(
+    entries: Sequence[LogEntry],
+    embeddings: np.ndarray,
+    cfg: DetectorConfig | None = None,
+    baseline: dict | None = None,
+) -> DetectionResult:
     cfg = cfg or DetectorConfig()
     n = len(entries)
     if n == 0:
-        return DetectionResult(entries, np.zeros(0), np.zeros(0, bool), [],
-                               np.zeros(0, int), [], [], False, "", {})
+        return DetectionResult(
+            entries, np.zeros(0), np.zeros(0, bool), [], np.zeros(0, int), [], [], False, "", {}
+        )
 
     vectors = normalize(np.asarray(embeddings, dtype=np.float32), norm="l2")
 
@@ -288,20 +321,18 @@ def detect(entries: Sequence[LogEntry],
         group_vectors[gi] = vectors[g.indices].mean(axis=0)
     group_vectors = normalize(group_vectors, norm="l2")
 
-    eps = cfg.eps if cfg.eps is not None else estimate_eps(
-        group_vectors, k=cfg.min_samples)
-    db = DBSCAN(eps=eps, min_samples=cfg.min_samples, metric="euclidean",
-                n_jobs=-1)
+    eps = cfg.eps if cfg.eps is not None else estimate_eps(group_vectors, k=cfg.min_samples)
+    db = DBSCAN(eps=eps, min_samples=cfg.min_samples, metric="euclidean", n_jobs=-1)
     group_labels = db.fit_predict(group_vectors, sample_weight=group_counts)
 
     # weighted cluster sizes (in ENTRIES, not templates)
-    cluster_sizes: Dict[int, float] = {}
-    for gl, c in zip(group_labels, group_counts):
+    cluster_sizes: dict[int, float] = {}
+    for gl, c in zip(group_labels, group_counts, strict=False):
         cluster_sizes[int(gl)] = cluster_sizes.get(int(gl), 0.0) + c
 
     severities = np.array([get_severity(e.level) for e in entries])
     levels = np.array([e.level.upper() for e in entries])
-    level_totals: Dict[str, int] = {}
+    level_totals: dict[str, int] = {}
     for lv in levels:
         level_totals[lv] = level_totals.get(lv, 0) + 1
 
@@ -312,7 +343,7 @@ def detect(entries: Sequence[LogEntry],
     group_outlier_z = np.zeros(n_groups, dtype=np.float64)
     group_outlier_dist = np.zeros(n_groups, dtype=np.float64)
     for lv in set(group_level):
-        gidx = [i for i, l in enumerate(group_level) if l == lv]
+        gidx = [i for i, lev in enumerate(group_level) if lev == lv]
         if len(gidx) < 4:
             continue
         w = group_counts[gidx]
@@ -330,8 +361,7 @@ def detect(entries: Sequence[LogEntry],
         for j, gi in enumerate(gidx):
             if dist[j] > cut and dist[j] > 0.05:
                 group_outlier[gi] = True
-                group_outlier_z[gi] = ((dist[j] - mean) / std
-                                       if std > 1e-9 else 10.0)
+                group_outlier_z[gi] = (dist[j] - mean) / std if std > 1e-9 else 10.0
                 group_outlier_dist[gi] = float(dist[j])
 
     if cfg.enable_burst:
@@ -339,13 +369,15 @@ def detect(entries: Sequence[LogEntry],
     else:
         burst_mask, burst_note = np.zeros(n, dtype=bool), "burst detection disabled"
 
-    severe_entries = int((severities <= 3).sum())          # ERROR and worse
+    severe_entries = int((severities <= 3).sum())  # ERROR and worse
     severe_share = severe_entries / n
     incident_mode = severe_share >= cfg.incident_share
     incident_note = ""
     if incident_mode:
-        incident_note = (f"{severe_share:.0%} of entries are ERROR or worse "
-                         f"— corpus looks like an incident window")
+        incident_note = (
+            f"{severe_share:.0%} of entries are ERROR or worse "
+            f"— corpus looks like an incident window"
+        )
 
     group_flood = np.zeros(n_groups, dtype=bool)
     for gi, g in enumerate(registry.groups):
@@ -355,14 +387,14 @@ def detect(entries: Sequence[LogEntry],
     recurring_cut = max(cfg.recurring_min, int(n * cfg.recurring_share))
     group_recurring = np.zeros(n_groups, dtype=bool)
     group_span = np.zeros(n_groups, dtype=np.float64)
-    group_history = np.zeros(n_groups, dtype=np.float64)   # head presence
+    group_history = np.zeros(n_groups, dtype=np.float64)  # head presence
     head_cut = int(n * HISTORY_HEAD)
     for gi, g in enumerate(registry.groups):
         if g.count > 1:
             group_span[gi] = (g.indices[-1] - g.indices[0]) / max(n - 1, 1)
         group_history[gi] = sum(1 for i in g.indices if i < head_cut) / g.count
 
-    baseline_templates: Dict[str, int] = {}
+    baseline_templates: dict[str, int] = {}
     baseline_total = 0
     if baseline:
         baseline_templates = baseline.get("templates", {}) or {}
@@ -371,8 +403,7 @@ def detect(entries: Sequence[LogEntry],
     group_surge = np.zeros(n_groups, dtype=bool)
     if baseline_templates:
         for gi, g in enumerate(registry.groups):
-            base_count = baseline_templates.get(
-                f"{g.level.upper()}|{g.template}", 0)
+            base_count = baseline_templates.get(f"{g.level.upper()}|{g.template}", 0)
             if base_count == 0:
                 group_novel[gi] = True
             elif baseline_total > 0:
@@ -383,12 +414,11 @@ def detect(entries: Sequence[LogEntry],
 
     for gi, g in enumerate(registry.groups):
         if group_sev[gi] > 4 or g.count < recurring_cut:
-            continue                    # WARN and worse, only recurring
+            continue  # WARN and worse, only recurring
         if baseline_templates:
-            base_count = baseline_templates.get(
-                f"{g.level.upper()}|{g.template}", 0)
+            base_count = baseline_templates.get(f"{g.level.upper()}|{g.template}", 0)
             if base_count > 0 and not group_surge[gi]:
-                continue                # known chronic noise: stay quiet
+                continue  # known chronic noise: stay quiet
         group_recurring[gi] = True
 
     group_chronic = np.zeros(n_groups, dtype=bool)
@@ -397,7 +427,7 @@ def detect(entries: Sequence[LogEntry],
         if g.count / n <= GLOBAL_RARE_SHARE:
             group_global_rare[gi] = True
         if group_sev[gi] > 4 or group_sev[gi] <= 1:
-            continue                    
+            continue
         if not (g.count / n >= CHRONIC_SHARE or g.count >= CHRONIC_MIN_COUNT):
             continue
         span = (g.indices[-1] - g.indices[0]) / max(n - 1, 1)
@@ -408,7 +438,7 @@ def detect(entries: Sequence[LogEntry],
         group_chronic[gi] = True
 
     scores = np.zeros(n, dtype=np.float64)
-    reasons: List[List[str]] = [[] for _ in range(n)]
+    reasons: list[list[str]] = [[] for _ in range(n)]
 
     conf = volume_confidence(n, cfg.rarity_confidence_k)
 
@@ -417,7 +447,7 @@ def detect(entries: Sequence[LogEntry],
         gi = registry.entry_group[i]
         g = registry.groups[gi]
         gl = int(group_labels[gi])
-        entry_reasons: List[str] = []
+        entry_reasons: list[str] = []
 
         chronic = bool(group_chronic[gi])
         if sev <= HARD_FLAG_SEVERITY:
@@ -426,17 +456,19 @@ def detect(entries: Sequence[LogEntry],
         else:
             score = SEVERITY_BASE.get(sev, 0.15)
             if chronic:
-                score *= CHRONIC_DAMP    # routine, high-volume severe pattern
-            if (3 <= sev <= 4 and g.count >= HISTORY_MIN_COUNT
-                    and group_span[gi] >= HISTORY_MIN_SPAN):
+                score *= CHRONIC_DAMP  # routine, high-volume severe pattern
+            if (
+                3 <= sev <= 4
+                and g.count >= HISTORY_MIN_COUNT
+                and group_span[gi] >= HISTORY_MIN_SPAN
+            ):
                 hp = group_history[gi]
-                routine = min(1.0, max(0.0, (hp - HISTORY_HEAD)
-                                       / (1.0 - HISTORY_HEAD)))
+                routine = min(1.0, max(0.0, (hp - HISTORY_HEAD) / (1.0 - HISTORY_HEAD)))
                 if routine > 0:
-                    score *= (1.0 - HISTORY_MAX_DAMP * routine)
+                    score *= 1.0 - HISTORY_MAX_DAMP * routine
                     entry_reasons.append(
-                        f"routine by own history "
-                        f"({hp:.0%} of occurrences in leading window)")
+                        f"routine by own history ({hp:.0%} of occurrences in leading window)"
+                    )
             if score > 0:
                 entry_reasons.append(f"severity {e.level.upper()}")
 
@@ -451,52 +483,50 @@ def detect(entries: Sequence[LogEntry],
             if csize <= dyn_threshold:
                 rarity = 0.45 + 0.30 * (1.0 - csize / (dyn_threshold + 1.0))
                 entry_reasons.append(
-                    f"rare pattern ({int(csize)} of {level_total} "
-                    f"{levels[i]} entries)")
+                    f"rare pattern ({int(csize)} of {level_total} {levels[i]} entries)"
+                )
         if group_outlier[gi]:
             z = group_outlier_z[gi]
             rarity = max(rarity, min(0.35 + 0.10 * max(0.0, z - 2.0), 0.75))
-            entry_reasons.append(
-                f"semantic outlier within {levels[i]} level (z={z:.1f})")
+            entry_reasons.append(f"semantic outlier within {levels[i]} level (z={z:.1f})")
         if g.count <= max(2, int(0.005 * level_total)):
             rarity = max(rarity, 0.40)
             if not any("rare" in r for r in entry_reasons):
                 entry_reasons.append(f"template seen only {g.count}x")
-        _extreme_outlier = (group_outlier[gi]
-                            and group_outlier_z[gi] >= OUTLIER_Z_EXEMPT
-                            and group_outlier_dist[gi] > OUTLIER_DIST_FLOOR)
+        _extreme_outlier = (
+            group_outlier[gi]
+            and group_outlier_z[gi] >= OUTLIER_Z_EXEMPT
+            and group_outlier_dist[gi] > OUTLIER_DIST_FLOOR
+        )
         if sev >= 5 and gl != -1 and not _extreme_outlier:
             rarity *= cfg.safe_rarity_damp
         if chronic:
             rarity *= CHRONIC_DAMP
             if not any("chronic" in r for r in entry_reasons):
-                entry_reasons.append(
-                    f"chronic pattern ({g.count}x) — damped as routine noise")
-        rarity *= conf          # thin-sample rarity is unreliable; damp it
+                entry_reasons.append(f"chronic pattern ({g.count}x) — damped as routine noise")
+        rarity *= conf  # thin-sample rarity is unreliable; damp it
         score += rarity
 
         if group_global_rare[gi] and sev <= 4 and not chronic:
             score += GLOBAL_RARE_BONUS * conf
-            entry_reasons.append(
-                f"globally rare ({g.count/n:.2%} of file)")
+            entry_reasons.append(f"globally rare ({g.count / n:.2%} of file)")
 
         if burst_mask[i]:
             score += 0.50
             entry_reasons.append(
-                f"rate burst (> {cfg.burst_factor:g}x baseline "
-                f"in {cfg.burst_window:g}s window)")
+                f"rate burst (> {cfg.burst_factor:g}x baseline in {cfg.burst_window:g}s window)"
+            )
 
         if group_flood[gi]:
             score += 0.35 + 0.25 * min(1.0, g.count / n)
-            entry_reasons.append(
-                f"flood: pattern is {g.count / n:.0%} of the whole file")
+            entry_reasons.append(f"flood: pattern is {g.count / n:.0%} of the whole file")
 
         if group_recurring[gi] and not chronic:
             conc = (g.count / (g.count + 8.0)) * (1.0 - group_span[gi])
             score += 0.02 + 0.25 * conc
             entry_reasons.append(
-                f"recurring {e.level.upper()} pattern "
-                f"({g.count}x, concentration {conc:.2f})")
+                f"recurring {e.level.upper()} pattern ({g.count}x, concentration {conc:.2f})"
+            )
 
         if sev <= 4 and not chronic and _CATASTROPHE_RE.search(e.message):
             score += 0.20
@@ -527,45 +557,48 @@ def detect(entries: Sequence[LogEntry],
         e.anomaly_score = float(scores[i])
         e.anomaly_reasons = reasons[i]
 
-    groups: List[AnomalyGroup] = []
-    for gi, g in enumerate(registry.groups):
+    groups: list[AnomalyGroup] = []
+    for g in registry.groups:
         fidx = [i for i in g.indices if flagged[i]]
         if not fidx:
             continue
-        merged: List[str] = []
+        merged: list[str] = []
         for i in fidx:
             for r in reasons[i]:
                 if r not in merged:
                     merged.append(r)
-        groups.append(AnomalyGroup(
-            level=g.level,
-            template=g.template,
-            representative=entries[fidx[0]],
-            count=len(fidx),
-            score=float(max(scores[i] for i in fidx)),
-            reasons=merged,
-            services=sorted({entries[i].service for i in fidx})[:5],
-            entry_indices=fidx,
-        ))
-    groups.sort(key=lambda a: (-a.score, get_severity(a.level), -a.count))
-
-    patterns: List[PatternInfo] = []
-    for gi, g in enumerate(registry.groups):
-        if group_sev[gi] <= 4 and g.count >= cfg.pattern_min:
-            patterns.append(PatternInfo(
+        groups.append(
+            AnomalyGroup(
                 level=g.level,
                 template=g.template,
-                representative=g.representative,
-                count=g.count,
-                share=g.count / n,
-                services=sorted({entries[i].service for i in g.indices})[:5],
-                flagged=bool(any(flagged[i] for i in g.indices)),
-            ))
-    patterns.sort(key=lambda p: (get_severity(p.level), -p.count))
-    patterns = patterns[:cfg.max_patterns]
+                representative=entries[fidx[0]],
+                count=len(fidx),
+                score=float(max(scores[i] for i in fidx)),
+                reasons=merged,
+                services=sorted({entries[i].service for i in fidx})[:5],
+                entry_indices=fidx,
+            )
+        )
+    groups.sort(key=lambda a: (-a.score, get_severity(a.level), -a.count))
 
-    entry_labels = np.array([group_labels[registry.entry_group[i]]
-                             for i in range(n)])
+    patterns: list[PatternInfo] = []
+    for gi, g in enumerate(registry.groups):
+        if group_sev[gi] <= 4 and g.count >= cfg.pattern_min:
+            patterns.append(
+                PatternInfo(
+                    level=g.level,
+                    template=g.template,
+                    representative=g.representative,
+                    count=g.count,
+                    share=g.count / n,
+                    services=sorted({entries[i].service for i in g.indices})[:5],
+                    flagged=bool(any(flagged[i] for i in g.indices)),
+                )
+            )
+    patterns.sort(key=lambda p: (get_severity(p.level), -p.count))
+    patterns = patterns[: cfg.max_patterns]
+
+    entry_labels = np.array([group_labels[registry.entry_group[i]] for i in range(n)])
 
     meta = {
         "eps": eps,
@@ -581,19 +614,27 @@ def detect(entries: Sequence[LogEntry],
         meta["burst_note"] = burst_note
 
     return DetectionResult(
-        entries=entries, scores=scores, flagged=flagged, reasons=reasons,
-        labels=entry_labels, groups=groups, patterns=patterns,
-        incident_mode=incident_mode, incident_note=incident_note, meta=meta,
+        entries=entries,
+        scores=scores,
+        flagged=flagged,
+        reasons=reasons,
+        labels=entry_labels,
+        groups=groups,
+        patterns=patterns,
+        incident_mode=incident_mode,
+        incident_note=incident_note,
+        meta=meta,
     )
 
 
-def detect_anomalies(entries: List[LogEntry],
-                     embeddings: np.ndarray,
-                     eps: Optional[float] = None,
-                     min_samples: int = 4,
-                     config: Optional[DetectorConfig] = None,
-                     baseline: Optional[dict] = None,
-                     ) -> Tuple[List[LogEntry], List[LogEntry], np.ndarray]:
+def detect_anomalies(
+    entries: list[LogEntry],
+    embeddings: np.ndarray,
+    eps: float | None = None,
+    min_samples: int = 4,
+    config: DetectorConfig | None = None,
+    baseline: dict | None = None,
+) -> tuple[list[LogEntry], list[LogEntry], np.ndarray]:
     cfg = config or DetectorConfig()
     if eps is not None:
         cfg.eps = eps

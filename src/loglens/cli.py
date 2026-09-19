@@ -3,44 +3,54 @@ import functools
 
 import typer
 from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
 from rich.markdown import Markdown
+from rich.panel import Panel
+from rich.table import Table
 
+from loglens import __version__
 from loglens.models import LogEntry
 from loglens.output.terminal import LiveProgress
-from loglens import __version__
 
 _LOADED = False
 
 
 def _load():
-    """Import the heavy pipeline symbols once, on first real command use."""
     global _LOADED
     if _LOADED:
         return
     g = globals()
-    from loglens.pipeline.ingestion import stream_lines, AsyncCommandReader, CommandError
-    from loglens.pipeline.parser import detect_format, parse_line
-    from loglens.pipeline.worker import run_worker_pool
-    from loglens.output.html_report import render_html_report
-    from loglens.pipeline.detector import detect_anomalies, cluster_summary, DetectorConfig
-    from loglens.pipeline.benchmark import run_benchmark
-    from loglens.pipeline.speedbench import bench_file, to_markdown
-    from loglens.pipeline.turbo import scan_file as turbo_scan
-    from loglens.pipeline.templates import TemplateRegistry
-    from loglens.pipeline.grouping import group_anomalies, group_summaries
-    from loglens.pipeline.embeddings import EmbeddingEngine
+    from loglens.output.html_report import render_html_report  # noqa: F401
+    from loglens.pipeline.benchmark import run_benchmark  # noqa: F401
+    from loglens.pipeline.detector import (  # noqa: F401
+        DetectorConfig,
+        cluster_summary,
+        detect_anomalies,
+    )
+    from loglens.pipeline.embeddings import EmbeddingEngine  # noqa: F401
+    from loglens.pipeline.grouping import group_anomalies, group_summaries  # noqa: F401
+    from loglens.pipeline.ingestion import (  # noqa: F401
+        AsyncCommandReader,
+        CommandError,
+        stream_lines,
+    )
+    from loglens.pipeline.parser import detect_format, parse_line  # noqa: F401
+    from loglens.pipeline.speedbench import bench_file, to_markdown  # noqa: F401
+    from loglens.pipeline.templates import TemplateRegistry  # noqa: F401
+    from loglens.pipeline.turbo import scan_file as turbo_scan  # noqa: F401
+    from loglens.pipeline.worker import run_worker_pool  # noqa: F401
+
     try:
-        from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
+        from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine  # noqa: F401
     except ImportError:
         DeepEmbeddingEngine = None
-    from loglens.llm import LLMConfig, LLMError, run_rca, run_ask, save_report
-    from loglens.live import LiveDetector
+    from loglens.live import LiveDetector  # noqa: F401
+    from loglens.llm import LLMConfig, LLMError, run_ask, run_rca, save_report  # noqa: F401
+
     for k, v in list(locals().items()):
         if k != "g":
             g[k] = v
     _LOADED = True
+
 
 app = typer.Typer(
     name="loglens",
@@ -50,14 +60,37 @@ app = typer.Typer(
 
 console = Console()
 
-LEVEL_WEIGHT = {"EMERGENCY": 6, "FATAL": 5, "CRITICAL": 5, "ERROR": 4,
-                "WARN": 3, "WARNING": 3, "INFO": 1, "DEBUG": 0}
-CATEGORY_ORDER = ["EMERGENCY", "FATAL", "CRITICAL", "ERROR", "WARN",
-                  "WARNING", "NOTICE", "INFO", "DEBUG"]
+LEVEL_WEIGHT = {
+    "EMERGENCY": 6,
+    "FATAL": 5,
+    "CRITICAL": 5,
+    "ERROR": 4,
+    "WARN": 3,
+    "WARNING": 3,
+    "INFO": 1,
+    "DEBUG": 0,
+}
+CATEGORY_ORDER = [
+    "EMERGENCY",
+    "FATAL",
+    "CRITICAL",
+    "ERROR",
+    "WARN",
+    "WARNING",
+    "NOTICE",
+    "INFO",
+    "DEBUG",
+]
 CATEGORY_COLOR = {
-    "EMERGENCY": "bold red", "FATAL": "bold red", "CRITICAL": "bold red",
-    "ERROR": "red", "WARN": "bold yellow", "WARNING": "bold yellow",
-    "NOTICE": "yellow", "INFO": "dim", "DEBUG": "dim",
+    "EMERGENCY": "bold red",
+    "FATAL": "bold red",
+    "CRITICAL": "bold red",
+    "ERROR": "red",
+    "WARN": "bold yellow",
+    "WARNING": "bold yellow",
+    "NOTICE": "yellow",
+    "INFO": "dim",
+    "DEBUG": "dim",
 }
 INFO_KEYWORDS = {"error", "fail", "timeout", "refused", "crash", "panic", "oom", "kill"}
 
@@ -91,11 +124,13 @@ def _do_rca(rca_input, scores, reasons, source, provider, llm_model, api_key, rc
         )
         result = run_rca(rca_input, cfg, scores=scores, reasons=reasons, source_name=source)
         console.print()
-        console.print(Panel(
-            Markdown(result.report),
-            title=f"🧠 AI Root-Cause Analysis ({result.provider} / {result.model})",
-            border_style="cyan",
-        ))
+        console.print(
+            Panel(
+                Markdown(result.report),
+                title=f"🧠 AI Root-Cause Analysis ({result.provider} / {result.model})",
+                border_style="cyan",
+            )
+        )
         u = result.usage
         console.print(
             f"[dim]Privacy: sent {result.anomalies_sent} anomaly summaries to the LLM — "
@@ -104,7 +139,9 @@ def _do_rca(rca_input, scores, reasons, source, provider, llm_model, api_key, rc
         )
         if rca_out:
             save_report(result, rca_out, source_name=source)
-            console.print(f"[bold cyan][LogLens][/bold cyan] RCA report saved: [green]{rca_out}[/green]")
+            console.print(
+                f"[bold cyan][LogLens][/bold cyan] RCA report saved: [green]{rca_out}[/green]"
+            )
         return result
     except LLMError as e:
         console.print(f"[bold red][LogLens][/bold red] RCA failed: {e}")
@@ -119,13 +156,21 @@ def _write_html(html_out, source, total_lines, anomalies, rca_result=None, score
         level_counts[lvl] = level_counts.get(lvl, 0) + 1
     rca_md = rca_result.report if rca_result else None
     rca_meta = (
-        {"provider": rca_result.provider, "model": rca_result.model,
-         "tokens": rca_result.usage.total_tokens}
-        if rca_result else None
+        {
+            "provider": rca_result.provider,
+            "model": rca_result.model,
+            "tokens": rca_result.usage.total_tokens,
+        }
+        if rca_result
+        else None
     )
     html_doc = render_html_report(
-        source=source, total_lines=total_lines, anomalies=anomalies,
-        level_counts=level_counts, rca_markdown=rca_md, rca_meta=rca_meta,
+        source=source,
+        total_lines=total_lines,
+        anomalies=anomalies,
+        level_counts=level_counts,
+        rca_markdown=rca_md,
+        rca_meta=rca_meta,
         scores=scores,
     )
     with open(html_out, "w", encoding="utf-8") as f:
@@ -151,45 +196,88 @@ def analyze(
     workers: int = typer.Option(4, "--workers", help="Number of parallel workers"),
     deep: bool = typer.Option(False, "--deep", help="Use neural embeddings (accurate, slower)"),
     limit: int = typer.Option(20, "--limit", help="Max anomaly families to display (default: 20)"),
-    sort_by: str = typer.Option("severity", "--sort-by", help="Sort anomalies by: severity | time | service"),
-    turbo: bool = typer.Option(False, "--turbo", help="Fast multiprocess scan for huge files (byte-range + template dedup, skips embeddings)"),
-    explain: int = typer.Option(0, "--explain", help="Show top-N scored entries (flagged or not) with score and reasons — for debugging near-misses"),
-    model: str = typer.Option("", "--model", help="Path to a trained model from `loglens train` — uses the supervised head instead of the raw threshold"),
-    no_model: bool = typer.Option(False, "--no-model", help="Ignore the bundled default model and use pure unsupervised detection"),
-    rca: bool = typer.Option(False, "--rca", help="AI root-cause analysis of detected anomalies (requires LLM key: openai | azure | groq)"),
-    provider: str = typer.Option("", "--provider", help="LLM provider: openai | azure | groq (or env LOGLENS_LLM_PROVIDER)"),
-    llm_model: str = typer.Option("", "--llm-model", help="LLM model / Azure deployment name (or env LOGLENS_LLM_MODEL)"),
-    api_key: str = typer.Option("", "--api-key", help="LLM API key (prefer env LOGLENS_LLM_API_KEY)"),
-    rca_out: str = typer.Option("", "--rca-out", help="Save the RCA report to a markdown file (e.g. rca_report.md)"),
-    html_out: str = typer.Option("", "--html", help="Save a standalone HTML report (e.g. report.html). Includes RCA if --rca is set."),
+    sort_by: str = typer.Option(
+        "severity", "--sort-by", help="Sort anomalies by: severity | time | service"
+    ),
+    turbo: bool = typer.Option(
+        False,
+        "--turbo",
+        help="Fast multiprocess scan for huge files (byte-range + template dedup, skips embeddings)",
+    ),
+    explain: int = typer.Option(
+        0,
+        "--explain",
+        help="Show top-N scored entries (flagged or not) with score and reasons — for debugging near-misses",
+    ),
+    model: str = typer.Option(
+        "",
+        "--model",
+        help="Path to a trained model from `loglens train` — uses the supervised head instead of the raw threshold",
+    ),
+    no_model: bool = typer.Option(
+        False,
+        "--no-model",
+        help="Ignore the bundled default model and use pure unsupervised detection",
+    ),
+    rca: bool = typer.Option(
+        False,
+        "--rca",
+        help="AI root-cause analysis of detected anomalies (requires LLM key: openai | azure | groq)",
+    ),
+    provider: str = typer.Option(
+        "", "--provider", help="LLM provider: openai | azure | groq (or env LOGLENS_LLM_PROVIDER)"
+    ),
+    llm_model: str = typer.Option(
+        "", "--llm-model", help="LLM model / Azure deployment name (or env LOGLENS_LLM_MODEL)"
+    ),
+    api_key: str = typer.Option(
+        "", "--api-key", help="LLM API key (prefer env LOGLENS_LLM_API_KEY)"
+    ),
+    rca_out: str = typer.Option(
+        "", "--rca-out", help="Save the RCA report to a markdown file (e.g. rca_report.md)"
+    ),
+    html_out: str = typer.Option(
+        "",
+        "--html",
+        help="Save a standalone HTML report (e.g. report.html). Includes RCA if --rca is set.",
+    ),
 ):
     _load()
 
-    from loglens.pipeline.filetype import check_source, InvalidSourceError
+    from loglens.pipeline.filetype import InvalidSourceError, check_source
+
     try:
         check_source(source)
     except InvalidSourceError as _e:
         console.print(f"[bold red][LogLens][/bold red] {_e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
 
     async def _run():
 
         if turbo:
             console.print(f"\n[bold cyan][LogLens][/bold cyan] Source: [yellow]{source}[/yellow]")
-            console.print("[bold cyan][LogLens][/bold cyan] Mode: [bold magenta]⚡ Turbo (parallel scan)[/bold magenta]")
+            console.print(
+                "[bold cyan][LogLens][/bold cyan] Mode: [bold magenta]⚡ Turbo (parallel scan)[/bold magenta]"
+            )
             loop = asyncio.get_running_loop()
             res = await loop.run_in_executor(
                 None,
                 functools.partial(turbo_scan, source, workers=(workers if workers else None)),
             )
             console.print(f"[bold cyan][LogLens][/bold cyan] Workers: [bold]{res.workers}[/bold]")
-            console.print(f"[bold cyan][LogLens][/bold cyan] Parsed lines: [bold]{res.parsed_lines:,}[/bold]")
+            console.print(
+                f"[bold cyan][LogLens][/bold cyan] Parsed lines: [bold]{res.parsed_lines:,}[/bold]"
+            )
             console.print(
                 f"[bold cyan][LogLens][/bold cyan] Unique templates: [bold]{len(res.templates):,}[/bold]  "
                 f"(redundancy [green]{res.redundancy() * 100:.1f}%[/green])"
             )
             anomalies = res.anomalies()
-            severe = sum(1 for a in anomalies if a.level.upper() in ("EMERGENCY", "FATAL", "CRITICAL", "ERROR"))
+            severe = sum(
+                1
+                for a in anomalies
+                if a.level.upper() in ("EMERGENCY", "FATAL", "CRITICAL", "ERROR")
+            )
             incident_flag = ""
             if res.parsed_lines and severe / res.parsed_lines >= 0.30:
                 incident_flag = " [bold red blink]⚠ INCIDENT[/bold red blink]"
@@ -201,16 +289,18 @@ def analyze(
             display = anomalies[:limit]
             if display:
                 console.print()
-                console.print(Panel(
-                    "\n".join(
-                        f"[{_level_color(a.level)}] [{a.level}][/{_level_color(a.level)}] "
-                        f"[yellow]{a.service}[/yellow] "
-                        f"[dim](×{a.count:,}, score {a.score})[/dim] — {a.sample[:110]}"
-                        for a in display
-                    ),
-                    title=f"[bold red]TOP ANOMALIES ({len(anomalies)} total)[/bold red]",
-                    border_style="red",
-                ))
+                console.print(
+                    Panel(
+                        "\n".join(
+                            f"[{_level_color(a.level)}] [{a.level}][/{_level_color(a.level)}] "
+                            f"[yellow]{a.service}[/yellow] "
+                            f"[dim](×{a.count:,}, score {a.score})[/dim] — {a.sample[:110]}"
+                            for a in display
+                        ),
+                        title=f"[bold red]TOP ANOMALIES ({len(anomalies)} total)[/bold red]",
+                        border_style="red",
+                    )
+                )
                 if len(anomalies) > limit:
                     console.print(
                         f"[dim]... and {len(anomalies) - limit} more "
@@ -233,15 +323,19 @@ def analyze(
                 ]
 
             if rca and rca_entries:
-                rca_result = _do_rca(rca_entries, [], [], source, provider, llm_model, api_key, rca_out)
+                rca_result = _do_rca(
+                    rca_entries, [], [], source, provider, llm_model, api_key, rca_out
+                )
             elif rca:
                 console.print("[dim]RCA skipped — no anomalies to analyze.[/dim]")
 
             if html_out:
                 turbo_scores = [float(a.score) for a in anomalies] if anomalies else None
-                _write_html(html_out, source, res.parsed_lines, rca_entries, rca_result, scores=turbo_scores)
+                _write_html(
+                    html_out, source, res.parsed_lines, rca_entries, rca_result, scores=turbo_scores
+                )
 
-            return   # turbo done — skip the classic pipeline
+            return  # turbo done — skip the classic pipeline
 
         line_count = 0
         fmt = None
@@ -253,7 +347,9 @@ def analyze(
             line_count += 1
             if line_count == 1:
                 fmt = detect_format(line)
-                console.print(f"[bold cyan][LogLens][/bold cyan] Detected format: [yellow]{fmt}[/yellow]")
+                console.print(
+                    f"[bold cyan][LogLens][/bold cyan] Detected format: [yellow]{fmt}[/yellow]"
+                )
 
             entry = parse_line(line, fmt)
             if entry:
@@ -261,7 +357,9 @@ def analyze(
                     sample_entry = entry
                 entries.append(entry)
 
-        console.print(f"[bold cyan][LogLens][/bold cyan] Lines ingested: [bold]{line_count:,}[/bold]")
+        console.print(
+            f"[bold cyan][LogLens][/bold cyan] Lines ingested: [bold]{line_count:,}[/bold]"
+        )
 
         if dry_run:
             console.print("[bold cyan][LogLens][/bold cyan] --dry-run: stopping before processing.")
@@ -272,7 +370,9 @@ def analyze(
             return
 
         if deep:
-            console.print("[bold cyan][LogLens][/bold cyan] Mode: [bold magenta] Deep (neural embeddings)[/bold magenta]")
+            console.print(
+                "[bold cyan][LogLens][/bold cyan] Mode: [bold magenta] Deep (neural embeddings)[/bold magenta]"
+            )
             if DeepEmbeddingEngine is None:
                 console.print(
                     "[bold red]Deep mode requires sentence-transformers.[/bold red]\n"
@@ -281,10 +381,14 @@ def analyze(
                 raise typer.Exit(code=1)
             engine = DeepEmbeddingEngine()
         else:
-            console.print("[bold cyan][LogLens][/bold cyan] Mode: [bold green] Fast (TF-IDF embeddings)[/bold green]")
+            console.print(
+                "[bold cyan][LogLens][/bold cyan] Mode: [bold green] Fast (TF-IDF embeddings)[/bold green]"
+            )
             engine = EmbeddingEngine()
 
-        console.print(f"[bold cyan][LogLens][/bold cyan] Computing embeddings for [bold]{len(entries):,}[/bold] entries...")
+        console.print(
+            f"[bold cyan][LogLens][/bold cyan] Computing embeddings for [bold]{len(entries):,}[/bold] entries..."
+        )
         if deep and hasattr(engine, "embed_templates"):
             registry = TemplateRegistry(entries)
             console.print(
@@ -300,8 +404,8 @@ def analyze(
                 emb_prog.start()
                 try:
                     vectors = engine.embed(
-                        entries,
-                        progress=lambda done, total: emb_prog.update(done))
+                        entries, progress=lambda done, total: emb_prog.update(done)
+                    )
                 finally:
                     emb_prog.stop()
             else:
@@ -321,60 +425,74 @@ def analyze(
         if not model and not no_model:
             try:
                 from importlib.resources import files
+
                 cand = files("loglens") / "assets" / "default_model.pkl"
                 if cand.is_file():
                     model_path = str(cand)
                     used_default = True
-            except Exception:
+            except Exception as exc:
+                console.print(
+                    "[yellow][LogLens][/yellow] Could not locate the bundled model "
+                    f"({type(exc).__name__}: {exc}); continuing with unsupervised "
+                    "detection."
+                )
                 model_path = ""
 
         if model_path:
             import numpy as _np
-            from loglens.pipeline.benchmark import (SupervisedHead,
-                                                    build_feature_matrix)
+
+            from loglens.pipeline.benchmark import SupervisedHead, build_feature_matrix
+
             try:
                 head = SupervisedHead.load(model_path)
             except Exception as exc:
                 console.print(f"[bold red]Could not load model '{model_path}': {exc}[/bold red]")
-                raise typer.Exit(code=1)
+                raise typer.Exit(code=1) from exc
             if used_default:
                 console.print(
                     "[bold cyan][LogLens][/bold cyan] Model:      "
                     "[magenta]bundled default[/magenta] "
                     "[dim](trained on infra logs; `loglens train` for your own; "
-                    "--no-model to disable)[/dim]")
+                    "--no-model to disable)[/dim]"
+                )
             else:
                 console.print(
                     f"[bold cyan][LogLens][/bold cyan] Model:      "
-                    f"[magenta]{model_path}[/magenta] [dim](supervised head)[/dim]")
-            _scores = _np.array(
-                [getattr(e, "anomaly_score", 0.0) for e in entries], dtype=float)
+                    f"[magenta]{model_path}[/magenta] [dim](supervised head)[/dim]"
+                )
+            _scores = _np.array([getattr(e, "anomaly_score", 0.0) for e in entries], dtype=float)
             _preds = head.predict(build_feature_matrix(entries, _scores))
-            anomalies = [e for e, p in zip(entries, _preds) if int(p) == 1]
+            anomalies = [e for e, p in zip(entries, _preds, strict=False) if int(p) == 1]
 
         if explain:
-            ranked = sorted(entries,
-                            key=lambda e: getattr(e, "anomaly_score", 0.0),
-                            reverse=True)[:explain]
+            ranked = sorted(entries, key=lambda e: getattr(e, "anomaly_score", 0.0), reverse=True)[
+                :explain
+            ]
             console.print()
-            console.print(Panel(
-                "\n".join(
-                    f"[bold]{getattr(e, 'anomaly_score', 0.0):.3f}[/bold] "
-                    f"[{'red' if getattr(e, 'anomaly_score', 0) >= 0.70 else 'yellow'}]"
-                    f"[{e.level}][/] [cyan]{e.service}[/cyan] {e.message[:70]}\n"
-                    f"        [dim]{'; '.join(getattr(e, 'anomaly_reasons', [])) or 'no signals'}[/dim]"
-                    for e in ranked
-                ),
-                title=f"[bold cyan]TOP {len(ranked)} SCORED ENTRIES "
-                      f"(threshold 0.70)[/bold cyan]",
-                border_style="cyan",
-            ))
+            console.print(
+                Panel(
+                    "\n".join(
+                        f"[bold]{getattr(e, 'anomaly_score', 0.0):.3f}[/bold] "
+                        f"[{'red' if getattr(e, 'anomaly_score', 0) >= 0.70 else 'yellow'}]"
+                        f"[{e.level}][/] [cyan]{e.service}[/cyan] {e.message[:70]}\n"
+                        f"        [dim]{'; '.join(getattr(e, 'anomaly_reasons', [])) or 'no signals'}[/dim]"
+                        for e in ranked
+                    ),
+                    title=f"[bold cyan]TOP {len(ranked)} SCORED ENTRIES "
+                    f"(threshold 0.70)[/bold cyan]",
+                    border_style="cyan",
+                )
+            )
 
         # Use len(anomalies) — actual score-flagged count, not just noise points
         n_anomalies = len(anomalies)
         incident_flag = ""
         if n_anomalies > 0:
-            severe = sum(1 for a in anomalies if a.level.upper() in ("EMERGENCY", "FATAL", "CRITICAL", "ERROR"))
+            severe = sum(
+                1
+                for a in anomalies
+                if a.level.upper() in ("EMERGENCY", "FATAL", "CRITICAL", "ERROR")
+            )
             severe_pct = severe / len(entries)
             if severe_pct >= 0.30:
                 incident_flag = " [bold red blink]⚠ INCIDENT[/bold red blink]"
@@ -385,18 +503,20 @@ def analyze(
             lvl = a.level.upper()
             level_counts[lvl] = level_counts.get(lvl, 0) + 1
 
-        console.print(f"[bold cyan][LogLens][/bold cyan] Clusters found: [bold]{summary['clusters']}[/bold]")
+        console.print(
+            f"[bold cyan][LogLens][/bold cyan] Clusters found: [bold]{summary['clusters']}[/bold]"
+        )
         console.print(
             f"[bold cyan][LogLens][/bold cyan] Anomalies detected: "
             f"[bold red]{n_anomalies:,}[/bold red] 🚨{incident_flag}"
         )
 
         # print breakdown tree
-        ordered_levels = [l for l in CATEGORY_ORDER if l in level_counts]
+        ordered_levels = [lvl for lvl in CATEGORY_ORDER if lvl in level_counts]
         # also catch any unexpected levels
-        for l in level_counts:
-            if l not in ordered_levels:
-                ordered_levels.append(l)
+        for lvl in level_counts:
+            if lvl not in ordered_levels:
+                ordered_levels.append(lvl)
         for idx, lvl in enumerate(ordered_levels):
             is_last = idx == len(ordered_levels) - 1
             branch = "└──" if is_last else "├──"
@@ -429,12 +549,17 @@ def analyze(
 
         progress.stop()
 
-        console.print(f"\n[bold cyan][LogLens][/bold cyan] Processed: [bold green]{stats['processed']:,}[/bold green]")
-        console.print(f"[bold cyan][LogLens][/bold cyan] Skipped:   [bold red]{stats['skipped']}[/bold red]")
+        console.print(
+            f"\n[bold cyan][LogLens][/bold cyan] Processed: [bold green]{stats['processed']:,}[/bold green]"
+        )
+        console.print(
+            f"[bold cyan][LogLens][/bold cyan] Skipped:   [bold red]{stats['skipped']}[/bold red]"
+        )
 
         # --- severity ranking (suppress INFO false positives) ---
         filtered_anomalies = [
-            a for a in anomalies
+            a
+            for a in anomalies
             if a.level.upper() != "INFO" or any(kw in a.message.lower() for kw in INFO_KEYWORDS)
         ]
 
@@ -451,17 +576,19 @@ def analyze(
         if groups:
             display = groups[:limit]
             console.print()
-            console.print(Panel(
-                "\n".join(
-                    f"[{_level_color(g.level)}] [{g.level}][/{_level_color(g.level)}] "
-                    f"[yellow]{g.service}[/yellow] "
-                    f"[dim](×{g.count:,}, score {g.max_score:.2f})[/dim] — {g.sample[:110]}"
-                    for g in display
-                ),
-                title=f"[bold red]ANOMALY FAMILIES ({len(groups)} families, "
-                      f"{len(filtered_anomalies)} events)[/bold red]",
-                border_style="red",
-            ))
+            console.print(
+                Panel(
+                    "\n".join(
+                        f"[{_level_color(g.level)}] [{g.level}][/{_level_color(g.level)}] "
+                        f"[yellow]{g.service}[/yellow] "
+                        f"[dim](×{g.count:,}, score {g.max_score:.2f})[/dim] — {g.sample[:110]}"
+                        for g in display
+                    ),
+                    title=f"[bold red]ANOMALY FAMILIES ({len(groups)} families, "
+                    f"{len(filtered_anomalies)} events)[/bold red]",
+                    border_style="red",
+                )
+            )
             if len(groups) > limit:
                 console.print(
                     f"[dim]... and {len(groups) - limit} more families "
@@ -491,15 +618,18 @@ def analyze(
             if rca_input:
                 scores = [g.max_score for g in groups]
                 reasons = ["; ".join(g.reasons) for g in groups]
-                rca_result = _do_rca(rca_input, scores, reasons, source, provider, llm_model, api_key, rca_out)
+                rca_result = _do_rca(
+                    rca_input, scores, reasons, source, provider, llm_model, api_key, rca_out
+                )
             else:
                 console.print("[dim]RCA skipped — no anomalies to analyze.[/dim]")
 
         # --- HTML report (Phase 3: with score distribution) ---
         if html_out:
             entry_scores = [getattr(e, "anomaly_score", 0.0) for e in entries]
-            _write_html(html_out, source, len(entries), filtered_anomalies, rca_result,
-                        scores=entry_scores)
+            _write_html(
+                html_out, source, len(entries), filtered_anomalies, rca_result, scores=entry_scores
+            )
 
         if verbose and sample_entry:
             table = Table(title="Sample Parsed Entry")
@@ -516,12 +646,16 @@ def analyze(
 
 @app.command()
 def ask(
-    question: str = typer.Argument(..., help="Free-form question about the log, e.g. \"why did db-service degrade?\""),
+    question: str = typer.Argument(
+        ..., help='Free-form question about the log, e.g. "why did db-service degrade?"'
+    ),
     source: str = typer.Option(..., help="Log source: file path"),
     deep: bool = typer.Option(False, "--deep", help="Use neural embeddings for detection"),
     provider: str = typer.Option("", "--provider", help="LLM provider: openai | azure | groq"),
     llm_model: str = typer.Option("", "--llm-model", help="LLM model / Azure deployment name"),
-    api_key: str = typer.Option("", "--api-key", help="LLM API key (prefer env LOGLENS_LLM_API_KEY)"),
+    api_key: str = typer.Option(
+        "", "--api-key", help="LLM API key (prefer env LOGLENS_LLM_API_KEY)"
+    ),
 ):
     _load()
 
@@ -553,14 +687,20 @@ def ask(
             engine = EmbeddingEngine()
             vectors = engine.embed(entries)
 
-        console.print(f"[bold cyan][LogLens][/bold cyan] Detecting anomalies locally on [bold]{len(entries):,}[/bold] entries...")
+        console.print(
+            f"[bold cyan][LogLens][/bold cyan] Detecting anomalies locally on [bold]{len(entries):,}[/bold] entries..."
+        )
         normal, anomalies, labels = detect_anomalies(entries, vectors)
-        console.print(f"[bold cyan][LogLens][/bold cyan] Anomalies found: [bold red]{len(anomalies):,}[/bold red]")
+        console.print(
+            f"[bold cyan][LogLens][/bold cyan] Anomalies found: [bold red]{len(anomalies):,}[/bold red]"
+        )
 
         try:
             cfg = LLMConfig.from_env(provider=provider, model=llm_model, api_key=api_key)
-            console.print(f"[bold cyan][LogLens][/bold cyan] 🤖 Asking [bold]{cfg.provider}[/bold] ([dim]{cfg.model}[/dim])...")
-            
+            console.print(
+                f"[bold cyan][LogLens][/bold cyan] 🤖 Asking [bold]{cfg.provider}[/bold] ([dim]{cfg.model}[/dim])..."
+            )
+
             groups = group_anomalies(anomalies)
             ranked = [
                 LogEntry(
@@ -573,13 +713,17 @@ def ask(
             ]
             scores = [g.max_score for g in groups]
             reasons = ["; ".join(g.reasons) for g in groups]
-            result = run_ask(question, ranked, cfg, scores=scores, reasons=reasons, source_name=source)
+            result = run_ask(
+                question, ranked, cfg, scores=scores, reasons=reasons, source_name=source
+            )
             console.print()
-            console.print(Panel(
-                Markdown(result.report),
-                title=f"💬 {question[:80]}",
-                border_style="cyan",
-            ))
+            console.print(
+                Panel(
+                    Markdown(result.report),
+                    title=f"💬 {question[:80]}",
+                    border_style="cyan",
+                )
+            )
             u = result.usage
             console.print(
                 f"[dim]Sent {result.anomalies_sent} anomaly summaries. "
@@ -588,7 +732,7 @@ def ask(
         except LLMError as e:
             console.print(f"[bold red][LogLens][/bold red] Ask failed: {e}")
             _print_llm_config_hint()
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from None
 
     asyncio.run(_run())
 
@@ -599,16 +743,19 @@ def benchmark(
     fmt: str = typer.Option("bgl", "--format", help="Label format: bgl | jsonl | labeled"),
     limit: int = typer.Option(None, "--limit", help="Max lines to load (default: all)"),
     grid: bool = typer.Option(False, "--grid", help="Grid-search feature_weight x threshold"),
-    supervised: bool = typer.Option(False, "--supervised", help="Train + eval supervised (RandomForest) head"),
+    supervised: bool = typer.Option(
+        False, "--supervised", help="Train + eval supervised (RandomForest) head"
+    ),
     min_f1: float = typer.Option(None, "--min-f1", help="Fail (exit 1) if baseline F1 below this"),
 ):
     _load()
-    console.print(f"\n[bold cyan][LogLens][/bold cyan] Benchmarking: [yellow]{dataset}[/yellow] "
-                  f"([dim]format={fmt}[/dim])")
+    console.print(
+        f"\n[bold cyan][LogLens][/bold cyan] Benchmarking: [yellow]{dataset}[/yellow] "
+        f"([dim]format={fmt}[/dim])"
+    )
 
     with console.status("[cyan]Parsing, embedding, detecting...[/cyan]"):
-        out = run_benchmark(dataset, fmt=fmt, limit=limit,
-                            do_grid=grid, do_supervised=supervised)
+        out = run_benchmark(dataset, fmt=fmt, limit=limit, do_grid=grid, do_supervised=supervised)
 
     if out.get("entries", 0) == 0:
         console.print("[bold red]No entries loaded — check path/format.[/bold red]")
@@ -655,20 +802,22 @@ def benchmark(
 @app.command()
 def train(
     dataset: str = typer.Argument(..., help="Path to a LABELED log file to learn from"),
-    out: str = typer.Option("loglens-model.pkl", "--out", "-o",
-                            help="Where to save the trained model"),
-    fmt: str = typer.Option("bgl", "--format",
-                            help="Label format: bgl | jsonl | labeled"),
+    out: str = typer.Option(
+        "loglens-model.pkl", "--out", "-o", help="Where to save the trained model"
+    ),
+    fmt: str = typer.Option("bgl", "--format", help="Label format: bgl | jsonl | labeled"),
     limit: int = typer.Option(None, "--limit", help="Max lines to load (default: all)"),
-    no_cv: bool = typer.Option(False, "--no-cv",
-                               help="Skip cross-validation (faster, no accuracy estimate)"),
+    no_cv: bool = typer.Option(
+        False, "--no-cv", help="Skip cross-validation (faster, no accuracy estimate)"
+    ),
 ):
     """Train a supervised model on labeled logs, for use with `analyze --model`."""
-    from loglens.pipeline.benchmark import (load_labeled, train_and_save,
-                                            cross_validate_supervised)
+    from loglens.pipeline.benchmark import cross_validate_supervised, load_labeled, train_and_save
 
-    console.print(f"\n[bold cyan][LogLens][/bold cyan] Training on: "
-                  f"[yellow]{dataset}[/yellow] [dim](format={fmt})[/dim]")
+    console.print(
+        f"\n[bold cyan][LogLens][/bold cyan] Training on: "
+        f"[yellow]{dataset}[/yellow] [dim](format={fmt})[/dim]"
+    )
 
     entries, labels = load_labeled(dataset, fmt=fmt, limit=limit)
     if len(entries) == 0:
@@ -710,15 +859,23 @@ def bench(
 ):
     _load()
     mode_list = [m.strip() for m in modes.split(",") if m.strip()]
-    console.print(f"\n[bold cyan][LogLens][/bold cyan] Benchmarking [yellow]{source}[/yellow] — modes: {mode_list}")
+    console.print(
+        f"\n[bold cyan][LogLens][/bold cyan] Benchmarking [yellow]{source}[/yellow] — modes: {mode_list}"
+    )
     results = bench_file(source, mode_list, workers=workers)
 
     table = Table(title="LogLens Speed Benchmark", header_style="bold cyan")
     for col in ["Mode", "Lines", "Time (s)", "Lines/s", "Anomalies", "Peak RAM (MB)"]:
         table.add_column(col, justify="right")
     for r in results:
-        table.add_row(r.mode, f"{r.lines:,}", str(r.seconds),
-                      f"{r.lines_per_s:,}", str(r.anomalies), str(r.peak_mb))
+        table.add_row(
+            r.mode,
+            f"{r.lines:,}",
+            str(r.seconds),
+            f"{r.lines_per_s:,}",
+            str(r.anomalies),
+            str(r.peak_mb),
+        )
     console.print(table)
 
     if out:
@@ -735,31 +892,44 @@ def watch(
     sensitivity: str = typer.Option("normal", "--sensitivity", help="low, normal, or high"),
     threshold: float = typer.Option(None, "--threshold", help="Explicit flag threshold"),
     quiet: bool = typer.Option(False, "--quiet", help="Only print anomalies, no status line"),
-    rca: bool = typer.Option(False, "--rca", help="After stopping, run AI root-cause analysis on everything caught"),
+    rca: bool = typer.Option(
+        False, "--rca", help="After stopping, run AI root-cause analysis on everything caught"
+    ),
     rca_out: str = typer.Option(None, "--rca-out", help="Also save the RCA as a markdown file"),
-    html_report: str = typer.Option(None, "--html-report", help="After stopping, write a shareable HTML dashboard of the session"),
+    html_report: str = typer.Option(
+        None,
+        "--html-report",
+        help="After stopping, write a shareable HTML dashboard of the session",
+    ),
 ):
     _load()
 
-    det = LiveDetector(window=window, mode=mode, sensitivity=sensitivity,
-                       threshold=threshold)
-    style = {"EMERGENCY": "bold white on red", "FATAL": "bold red",
-             "CRITICAL": "red", "ERROR": "yellow", "WARN": "dark_orange"}
+    det = LiveDetector(window=window, mode=mode, sensitivity=sensitivity, threshold=threshold)
+    style = {
+        "EMERGENCY": "bold white on red",
+        "FATAL": "bold red",
+        "CRITICAL": "red",
+        "ERROR": "yellow",
+        "WARN": "dark_orange",
+    }
 
     def show(a):
         s = style.get(a.level.upper(), "cyan")
         svc = f" [magenta]{a.service}[/magenta]" if a.service not in ("", "unknown") else ""
         console.print(
             f"[dim]{a.timestamp or '—'}[/dim] [{s}]\\[{a.level}][/{s}]{svc} "
-            f"[bold]{a.score:.2f}[/bold] {a.message}")
+            f"[bold]{a.score:.2f}[/bold] {a.message}"
+        )
         if a.reasons:
             console.print(f"          [dim]{'; '.join(a.reasons[:3])}[/dim]")
 
     async def _watch():
         reader = AsyncCommandReader(cmd)
         if not quiet:
-            console.print(f"[bold cyan][LogLens][/bold cyan] watching: [bold]{cmd}[/bold] "
-                          f"[dim](window={window}, mode={mode}, Ctrl-C to stop)[/dim]")
+            console.print(
+                f"[bold cyan][LogLens][/bold cyan] watching: [bold]{cmd}[/bold] "
+                f"[dim](window={window}, mode={mode}, Ctrl-C to stop)[/dim]"
+            )
         n = 0
         async for line in reader:
             n += 1
@@ -767,8 +937,9 @@ def watch(
                 show(a)
             if not quiet and n % 500 == 0:
                 s = det.summary()
-                console.print(f"[dim]… {s['entries']:,} lines, "
-                              f"{s['anomalies']} anomalies so far[/dim]")
+                console.print(
+                    f"[dim]… {s['entries']:,} lines, {s['anomalies']} anomalies so far[/dim]"
+                )
 
     try:
         asyncio.run(_watch())
@@ -776,40 +947,54 @@ def watch(
         pass
     except CommandError as exc:
         console.print(f"[bold red][LogLens][/bold red] {exc}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
 
     for a in det.flush():
         show(a)
     s = det.summary()
-    lvl = ", ".join(f"{k}: {v}" for k, v in sorted(
-        s["by_level"].items(), key=lambda kv: -kv[1])) or "none"
-    console.print(Panel(
-        f"lines analyzed: [bold]{s['entries']:,}[/bold]\n"
-        f"anomalies:      [bold]{s['anomalies']}[/bold]  ({lvl})\n"
-        f"incident mode:  {'[bold red]YES[/bold red]' if s['incident'] else 'no'}",
-        title="[bold cyan]WATCH SUMMARY[/bold cyan]", border_style="cyan"))
+    lvl = (
+        ", ".join(f"{k}: {v}" for k, v in sorted(s["by_level"].items(), key=lambda kv: -kv[1]))
+        or "none"
+    )
+    console.print(
+        Panel(
+            f"lines analyzed: [bold]{s['entries']:,}[/bold]\n"
+            f"anomalies:      [bold]{s['anomalies']}[/bold]  ({lvl})\n"
+            f"incident mode:  {'[bold red]YES[/bold red]' if s['incident'] else 'no'}",
+            title="[bold cyan]WATCH SUMMARY[/bold cyan]",
+            border_style="cyan",
+        )
+    )
 
     rca_result = None
     if rca or rca_out:
         try:
             console.print("[bold cyan][LogLens][/bold cyan] running AI root-cause analysis…")
             rca_result = det.rca(source_name=cmd)
-            console.print(Panel(
-                Markdown(rca_result.report),
-                title=f"🧠 AI Root-Cause Analysis ({rca_result.provider} / {rca_result.model})",
-                border_style="cyan"))
+            console.print(
+                Panel(
+                    Markdown(rca_result.report),
+                    title=f"🧠 AI Root-Cause Analysis ({rca_result.provider} / {rca_result.model})",
+                    border_style="cyan",
+                )
+            )
             if rca_out:
                 save_report(rca_result, rca_out, source_name=cmd)
-                console.print(f"[bold cyan][LogLens][/bold cyan] RCA saved to [bold]{rca_out}[/bold]")
+                console.print(
+                    f"[bold cyan][LogLens][/bold cyan] RCA saved to [bold]{rca_out}[/bold]"
+                )
         except LLMError as exc:
             console.print(f"[bold red][LogLens][/bold red] RCA failed: {exc}")
-            console.print("[dim]Set LOGLENS_LLM_PROVIDER / LOGLENS_LLM_MODEL / "
-                          "LOGLENS_LLM_API_KEY (see `loglens analyze --help`).[/dim]")
+            console.print(
+                "[dim]Set LOGLENS_LLM_PROVIDER / LOGLENS_LLM_MODEL / "
+                "LOGLENS_LLM_API_KEY (see `loglens analyze --help`).[/dim]"
+            )
 
     if html_report:
         det.save_html(html_report, rca=rca_result, source_name=cmd)
-        console.print(f"[bold cyan][LogLens][/bold cyan] HTML report saved to "
-                      f"[bold]{html_report}[/bold]")
+        console.print(
+            f"[bold cyan][LogLens][/bold cyan] HTML report saved to [bold]{html_report}[/bold]"
+        )
 
 
 if __name__ == "__main__":

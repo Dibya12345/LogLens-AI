@@ -3,8 +3,8 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import Counter
+from collections.abc import AsyncIterator, Callable
 from concurrent.futures import Executor
-from typing import AsyncIterator, Callable, Optional
 
 from loglens.models import LogEntry
 
@@ -16,8 +16,8 @@ async def run_worker_pool(
     process_fn: Callable[[LogEntry], object],
     num_workers: int = 4,
     queue_size: int = 1000,
-    executor: Optional[Executor] = None,
-    on_progress: Optional[Callable[[int], None]] = None,
+    executor: Executor | None = None,
+    on_progress: Callable[[int], None] | None = None,
     progress_every: int = 100,
     debug: bool = False,
 ) -> dict:
@@ -43,7 +43,7 @@ async def run_worker_pool(
                 stats["processed"] += 1
                 if on_progress and stats["processed"] % progress_every == 0:
                     on_progress(stats["processed"])
-            except Exception as e:                       
+            except Exception as e:
                 stats["skipped"] += 1
                 stats["errors"][type(e).__name__] += 1
                 logger.debug("entry skipped: %s: %s", type(e).__name__, e)

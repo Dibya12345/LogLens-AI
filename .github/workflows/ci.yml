@@ -98,8 +98,14 @@ jobs:
       - name: Import smoke test
         run: python -c "import loglens; from loglens.cli import app; print('import OK')"
 
-      - name: Lint (non-blocking)
+      - name: Lint (ruff, advisory)
         continue-on-error: true
-        run: |
-          pip install ruff
-          ruff check src/ || true
+        run: ruff check src/ tests/
+
+      - name: Format check (ruff, advisory)
+        continue-on-error: true
+        run: ruff format --check src/ tests/
+
+      - name: Type check (mypy, advisory)
+        continue-on-error: true
+        run: mypy src/loglens

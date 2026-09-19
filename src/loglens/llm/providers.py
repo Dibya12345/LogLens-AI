@@ -1,8 +1,6 @@
-
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Tuple
 
 from loglens.llm.config import LLMConfig
 from loglens.llm.transport import LLMError, TokenUsage
@@ -21,10 +19,10 @@ class LLMProvider(ABC):
         """The full chat-completions URL for this provider."""
 
     @abstractmethod
-    def headers(self) -> Dict[str, str]:
+    def headers(self) -> dict[str, str]:
         """Auth + content-type headers for this provider."""
 
-    def payload(self, messages: List[Dict[str, str]]) -> Dict:
+    def payload(self, messages: list[dict[str, str]]) -> dict:
         """The JSON request body. Shared shape; subclasses may adjust."""
         c = self.config
         return {
@@ -34,7 +32,7 @@ class LLMProvider(ABC):
             "max_tokens": c.max_tokens,
         }
 
-    def explain_error(self, code: int, detail: str) -> Optional[str]:
+    def explain_error(self, code: int, detail: str) -> str | None:
         """Turn a non-retryable HTTP status into a friendly message (or None)."""
         if code == 401:
             return f"[{self.name}] Invalid API key (401). {detail}"
@@ -49,7 +47,7 @@ class _OpenAICompatible(LLMProvider):
     def endpoint(self) -> str:
         return self.base_url
 
-    def headers(self) -> Dict[str, str]:
+    def headers(self) -> dict[str, str]:
         return {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.config.api_key}",
@@ -78,15 +76,15 @@ class AzureProvider(LLMProvider):
             f"/chat/completions?api-version={az.api_version}"
         )
 
-    def headers(self) -> Dict[str, str]:
+    def headers(self) -> dict[str, str]:
         return {"Content-Type": "application/json", "api-key": self.config.api_key}
 
-    def payload(self, messages: List[Dict[str, str]]) -> Dict:
+    def payload(self, messages: list[dict[str, str]]) -> dict:
         p = super().payload(messages)
         p.pop("model", None)  # Azure selects the model via the deployment in the URL
         return p
 
-    def explain_error(self, code: int, detail: str) -> Optional[str]:
+    def explain_error(self, code: int, detail: str) -> str | None:
         if code == 401:
             return f"[azure] Invalid API key (401). {detail}"
         if code == 404:
@@ -110,11 +108,11 @@ def get_provider(config: LLMConfig) -> LLMProvider:
     except KeyError:
         raise LLMError(
             f"Unknown provider '{config.provider}'. Use {' | '.join(_REGISTRY)}."
-        )
+        ) from None
     return cls(config)
 
 
-def parse_response(data: Dict) -> Tuple[str, TokenUsage]:
+def parse_response(data: dict) -> tuple[str, TokenUsage]:
     usage = data.get("usage") or {}
     content = data["choices"][0]["message"]["content"]
     return content, TokenUsage(

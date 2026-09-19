@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import shlex
-from typing import AsyncIterator, List, Sequence, Union
+from collections.abc import AsyncIterator, Sequence
 
-CmdType = Union[str, Sequence[str]]
+logger = logging.getLogger("loglens.ingestion.command")
+
+CmdType = str | Sequence[str]
 
 _EOF = object()
 
 
 class CommandError(RuntimeError):
-
     def __init__(self, cmd: str, returncode: int, stderr_tail: str = ""):
         self.cmd = cmd
         self.returncode = returncode
@@ -22,13 +24,12 @@ class CommandError(RuntimeError):
 
 
 class AsyncCommandReader:
-    def __init__(self, cmd: CmdType, *, include_stderr: bool = True,
-                 kill_timeout: float = 3.0):
+    def __init__(self, cmd: CmdType, *, include_stderr: bool = True, kill_timeout: float = 3.0):
         self.cmd = cmd
         self.include_stderr = include_stderr
         self.kill_timeout = kill_timeout
         self.returncode: int | None = None
-        self._stderr_tail: List[str] = []
+        self._stderr_tail: list[str] = []
 
     @property
     def display(self) -> str:
@@ -37,13 +38,14 @@ class AsyncCommandReader:
         return " ".join(shlex.quote(p) for p in self.cmd)
 
     async def _spawn(self) -> asyncio.subprocess.Process:
-        stderr = (asyncio.subprocess.PIPE if self.include_stderr
-                  else asyncio.subprocess.DEVNULL)
+        stderr = asyncio.subprocess.PIPE if self.include_stderr else asyncio.subprocess.DEVNULL
         if isinstance(self.cmd, str):
             return await asyncio.create_subprocess_shell(
-                self.cmd, stdout=asyncio.subprocess.PIPE, stderr=stderr)
+                self.cmd, stdout=asyncio.subprocess.PIPE, stderr=stderr
+            )
         return await asyncio.create_subprocess_exec(
-            *self.cmd, stdout=asyncio.subprocess.PIPE, stderr=stderr)
+            *self.cmd, stdout=asyncio.subprocess.PIPE, stderr=stderr
+        )
 
     async def __aiter__(self) -> AsyncIterator[str]:
         try:
@@ -88,8 +90,7 @@ class AsyncCommandReader:
 
         self.returncode = proc.returncode
         if self.returncode not in (0, None) and not produced_any:
-            raise CommandError(self.display, self.returncode,
-                               "\n".join(self._stderr_tail[-5:]))
+            raise CommandError(self.display, self.returncode, "\n".join(self._stderr_tail[-5:]))
 
     async def _terminate(self, proc: asyncio.subprocess.Process) -> None:
         if proc.returncode is not None:
@@ -107,12 +108,11 @@ class AsyncCommandReader:
                 pass
             try:
                 await proc.wait()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("proc.wait() after kill failed: %s", exc)
 
 
-async def stream_command(cmd: CmdType, *,
-                         include_stderr: bool = True) -> AsyncIterator[str]:
+async def stream_command(cmd: CmdType, *, include_stderr: bool = True) -> AsyncIterator[str]:
     reader = AsyncCommandReader(cmd, include_stderr=include_stderr)
     async for line in reader:
         yield line

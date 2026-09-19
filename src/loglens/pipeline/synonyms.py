@@ -7,13 +7,13 @@ import os
 import re
 import tempfile
 from collections import defaultdict
-from typing import Dict, Iterable, List, Optional
+from collections.abc import Iterable
 
 import platformdirs
 
 logger = logging.getLogger("loglens.synonyms")
 
-BASE_SYNONYMS: Dict[str, str] = {
+BASE_SYNONYMS: dict[str, str] = {
     "db": "database",
     "conn": "connection",
     "auth": "authentication",
@@ -60,21 +60,102 @@ BASE_SYNONYMS: Dict[str, str] = {
     "overloaded": "overloaded",
 }
 
-STOPWORDS = frozenset({
-    "the", "for", "and", "not", "was", "were", "are", "has", "had", "have",
-    "with", "from", "this", "that", "then", "than", "when", "will", "been",
-    "being", "after", "before", "into", "over", "under", "while", "where",
-    "which", "because", "could", "should", "would", "did", "does", "done",
-    "due", "via", "per", "all", "any", "but", "its", "you", "your", "out",
-    "off", "our", "their", "them", "they", "these", "those", "there", "here",
-    "what", "who", "how", "why", "can", "cannot", "may", "might", "must",
-    "shall", "upon", "also", "only", "just", "very", "some", "such", "each",
-    "both", "few", "more", "most", "other", "same", "own", "too", "now",
-    "get", "got", "set", "yet", "still", "about", "above", "below",
-})
+STOPWORDS = frozenset(
+    {
+        "the",
+        "for",
+        "and",
+        "not",
+        "was",
+        "were",
+        "are",
+        "has",
+        "had",
+        "have",
+        "with",
+        "from",
+        "this",
+        "that",
+        "then",
+        "than",
+        "when",
+        "will",
+        "been",
+        "being",
+        "after",
+        "before",
+        "into",
+        "over",
+        "under",
+        "while",
+        "where",
+        "which",
+        "because",
+        "could",
+        "should",
+        "would",
+        "did",
+        "does",
+        "done",
+        "due",
+        "via",
+        "per",
+        "all",
+        "any",
+        "but",
+        "its",
+        "you",
+        "your",
+        "out",
+        "off",
+        "our",
+        "their",
+        "them",
+        "they",
+        "these",
+        "those",
+        "there",
+        "here",
+        "what",
+        "who",
+        "how",
+        "why",
+        "can",
+        "cannot",
+        "may",
+        "might",
+        "must",
+        "shall",
+        "upon",
+        "also",
+        "only",
+        "just",
+        "very",
+        "some",
+        "such",
+        "each",
+        "both",
+        "few",
+        "more",
+        "most",
+        "other",
+        "same",
+        "own",
+        "too",
+        "now",
+        "get",
+        "got",
+        "set",
+        "yet",
+        "still",
+        "about",
+        "above",
+        "below",
+    }
+)
 
 ERROR_CODE_PATTERNS = [
-    (re.compile(r"^ECONN(\w+)$"), lambda m: m.group(1).lower()),  
+    (re.compile(r"^ECONN(\w+)$"), lambda m: m.group(1).lower()),
     (re.compile(r"^ETIMED?OUT$"), lambda m: "timeout"),
     (re.compile(r"^ENOENT$"), lambda m: "missing"),
     (re.compile(r"^EPERM$"), lambda m: "denied"),
@@ -91,13 +172,13 @@ NUM_WORD_PATTERN = re.compile(r"(\d+)([a-zA-Z]+)$")
 _TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*|\d+")
 
 
-def split_camel_case(word: str) -> List[str]:
+def split_camel_case(word: str) -> list[str]:
     split = re.sub(r"([a-z])([A-Z])", r"\1 \2", word)
     split = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1 \2", split)
     return split.lower().split()
 
 
-def split_word_number(word: str) -> List[str]:
+def split_word_number(word: str) -> list[str]:
     m = WORD_NUM_PATTERN.match(word)
     if m:
         return [m.group(1), m.group(2)]
@@ -107,7 +188,7 @@ def split_word_number(word: str) -> List[str]:
     return [word]
 
 
-def detect_unknown_word(word: str, synonyms: Optional[Dict[str, str]] = None) -> str:
+def detect_unknown_word(word: str, synonyms: dict[str, str] | None = None) -> str:
     syn = synonyms if synonyms is not None else BASE_SYNONYMS
     upper = word.upper()
 
@@ -127,11 +208,11 @@ def detect_unknown_word(word: str, synonyms: Optional[Dict[str, str]] = None) ->
     return word.lower()
 
 
-def normalize_message(msg: str, synonyms: Optional[Dict[str, str]] = None) -> str:
-    
+def normalize_message(msg: str, synonyms: dict[str, str] | None = None) -> str:
+
     syn = synonyms if synonyms is not None else BASE_SYNONYMS
-    result: List[str] = []
-    for tok in _TOKEN_RE.findall(msg):          # audit S-01
+    result: list[str] = []
+    for tok in _TOKEN_RE.findall(msg):
         low = tok.lower()
         if low.isdigit():
             result.append(tok)
@@ -142,7 +223,7 @@ def normalize_message(msg: str, synonyms: Optional[Dict[str, str]] = None) -> st
     return " ".join(result)
 
 
-def _corpus_fingerprint(messages: List[str]) -> str:
+def _corpus_fingerprint(messages: list[str]) -> str:
     h = hashlib.sha1()
     h.update(str(len(messages)).encode())
     for m in messages[:500]:
@@ -152,40 +233,38 @@ def _corpus_fingerprint(messages: List[str]) -> str:
 
 
 class SynonymLearner:
-
-
     CACHE_VERSION = 2
 
-    def __init__(self,
-                 min_cooccurrence: Optional[int] = None,
-                 similarity_threshold: float = 0.7,
-                 cache_dir: Optional[str] = None,
-                 use_cache: bool = True):
-        self.min_cooccurrence = min_cooccurrence     
+    def __init__(
+        self,
+        min_cooccurrence: int | None = None,
+        similarity_threshold: float = 0.7,
+        cache_dir: str | None = None,
+        use_cache: bool = True,
+    ):
+        self.min_cooccurrence = min_cooccurrence
         self.similarity_threshold = similarity_threshold
         self.use_cache = use_cache
-        self.learned: Dict[str, str] = {}
-        self.word_freq: Dict[str, int] = defaultdict(int)
-        self.cooccurrence: Dict[str, Dict[str, int]] = defaultdict(
-            lambda: defaultdict(int))
+        self.learned: dict[str, str] = {}
+        self.word_freq: dict[str, int] = defaultdict(int)
+        self.cooccurrence: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
         base = cache_dir or platformdirs.user_cache_dir("loglens")
-        self._cache_path = os.path.join(base, "synonyms.json") 
-
+        self._cache_path = os.path.join(base, "synonyms.json")
 
     def _load_cache(self, fingerprint: str) -> bool:
         """Return True (and populate ``learned``) only when the cached
-        fingerprint matches the current corpus (audit S-06)."""
+        fingerprint matches the current corpus."""
         if not self.use_cache:
             return False
         try:
             with open(self._cache_path, encoding="utf-8") as f:
                 data = json.load(f)
-            if (data.get("version") == self.CACHE_VERSION
-                    and data.get("corpus_hash") == fingerprint):
+            if data.get("version") == self.CACHE_VERSION and data.get("corpus_hash") == fingerprint:
                 self.learned = dict(data.get("learned", {}))
                 return True
-        except (OSError, ValueError, TypeError):
-            pass
+        except (OSError, ValueError, TypeError) as e:
+            # Corrupt/unreadable cache — relearn from scratch, but leave a trace.
+            logger.debug("synonym cache read skipped (%s): %s", type(e).__name__, e)
         return False
 
     def _save_cache(self, fingerprint: str) -> None:
@@ -193,22 +272,22 @@ class SynonymLearner:
             return
         try:
             os.makedirs(os.path.dirname(self._cache_path), exist_ok=True)
-            payload = {"version": self.CACHE_VERSION,
-                       "corpus_hash": fingerprint,
-                       "learned": self.learned}
-            fd, tmp = tempfile.mkstemp(
-                dir=os.path.dirname(self._cache_path), suffix=".tmp")
+            payload = {
+                "version": self.CACHE_VERSION,
+                "corpus_hash": fingerprint,
+                "learned": self.learned,
+            }
+            fd, tmp = tempfile.mkstemp(dir=os.path.dirname(self._cache_path), suffix=".tmp")
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump(payload, f, indent=2)
-            os.replace(tmp, self._cache_path)     
+            os.replace(tmp, self._cache_path)
         except OSError as e:
             logger.debug("synonym cache write skipped: %s", e)
 
-
-    def _tokenize(self, msg: str) -> List[str]:
+    def _tokenize(self, msg: str) -> list[str]:
         toks = []
         for t in _TOKEN_RE.findall(msg.lower()):
-            if len(t) < 3 or t.isdigit() or t in STOPWORDS: 
+            if len(t) < 3 or t.isdigit() or t in STOPWORDS:
                 continue
             toks.append(t)
         return toks
@@ -217,14 +296,14 @@ class SynonymLearner:
         messages = list(messages)
         fingerprint = _corpus_fingerprint(messages)
         if self._load_cache(fingerprint):
-            return                                 
+            return
 
         self.learned = {}
         self.word_freq = defaultdict(int)
         self.cooccurrence = defaultdict(lambda: defaultdict(int))
 
         min_cooc = self.min_cooccurrence
-        if min_cooc is None:                       
+        if min_cooc is None:
             min_cooc = max(2, len(messages) // 500)
 
         for msg in messages:
@@ -232,7 +311,7 @@ class SynonymLearner:
             for token in tokens:
                 self.word_freq[token] += 1
             for i, t1 in enumerate(tokens):
-                for t2 in tokens[max(0, i - 3): i + 4]:
+                for t2 in tokens[max(0, i - 3) : i + 4]:
                     if t1 != t2:
                         self.cooccurrence[t1][t2] += 1
 
@@ -243,19 +322,21 @@ class SynonymLearner:
             rare_freq = self.word_freq[rare]
             rare_ctx = self.cooccurrence[rare]
             rare_chars = set(rare)
-            best: Optional[str] = None
+            best: str | None = None
             best_sim = 0.0
             for common in sorted(self.word_freq):
-                if (common == rare or common in STOPWORDS
-                        or len(common) <= len(rare)
-                        or self.word_freq[common] < rare_freq):
+                if (
+                    common == rare
+                    or common in STOPWORDS
+                    or len(common) <= len(rare)
+                    or self.word_freq[common] < rare_freq
+                ):
                     continue
                 overlap = len(rare_chars & set(common)) / len(rare_chars)
                 if overlap < 0.6:
                     continue
                 common_ctx = self.cooccurrence[common]
-                shared = sum(min(c, common_ctx.get(w, 0))
-                             for w, c in rare_ctx.items())
+                shared = sum(min(c, common_ctx.get(w, 0)) for w, c in rare_ctx.items())
                 if shared < min_cooc:
                     continue
                 total = sum(rare_ctx.values()) or 1
@@ -267,7 +348,7 @@ class SynonymLearner:
 
         self._save_cache(fingerprint)
 
-    def get_all_synonyms(self) -> Dict[str, str]:
+    def get_all_synonyms(self) -> dict[str, str]:
         merged = dict(BASE_SYNONYMS)
         merged.update(self.learned)
         return merged

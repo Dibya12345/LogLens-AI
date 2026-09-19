@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Dict, List
-
 from loglens.llm.config import LLMConfig
 from loglens.llm.providers import get_provider, parse_response
 from loglens.llm.transport import HttpTransport, LLMResponse
@@ -13,7 +11,7 @@ class LLMClient:
         self.provider = get_provider(config)
         self.transport = HttpTransport(timeout=config.timeout, retries=config.retries)
 
-    def chat(self, messages: List[Dict[str, str]]) -> LLMResponse:
+    def chat(self, messages: list[dict[str, str]]) -> LLMResponse:
         p = self.provider
         data = self.transport.post_json(
             p.endpoint(),

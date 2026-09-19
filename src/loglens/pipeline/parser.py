@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
-from typing import Iterable, Iterator, Optional
+from collections.abc import Iterable, Iterator
 
 from loglens.models import LogEntry
+
+logger = logging.getLogger("loglens.parser")
 
 PATTERNS = {
     "JSON": None,  # handled separately
@@ -15,50 +18,50 @@ PATTERNS = {
         r'(?P<ip>\S+) \S+ \S+ \[(?P<time>[^\]]+)\] "(?P<method>\S+) (?P<path>\S+)[^"]*" (?P<status>\d+) (?P<bytes>\d+)'
     ),
     "APP_LOG": re.compile(
-        r'^(?P<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}[,\.]\d+)\s+'
-        r'(?P<level>[A-Z]+)\s+\[(?P<thread>[^\]]*)\]\s+'
-        r'(?P<service>[^:\s]+):\s*(?P<message>.*)'
+        r"^(?P<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}[,\.]\d+)\s+"
+        r"(?P<level>[A-Z]+)\s+\[(?P<thread>[^\]]*)\]\s+"
+        r"(?P<service>[^:\s]+):\s*(?P<message>.*)"
     ),
     "ZK_LOG": re.compile(
-        r'^(?P<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}[,\.]\d+)\s+-\s+'
-        r'(?P<level>[A-Z]+)\s+\[(?P<thread>.+)\]\s+-\s+(?P<message>.+)'
+        r"^(?P<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}[,\.]\d+)\s+-\s+"
+        r"(?P<level>[A-Z]+)\s+\[(?P<thread>.+)\]\s+-\s+(?P<message>.+)"
     ),
     "SPARK_LOG": re.compile(
-        r'^(?P<time>\d\d/\d\d/\d\d \d\d:\d\d:\d\d)\s+'
-        r'(?P<level>[A-Z]+)\s+(?P<service>[^:]+):\s*(?P<message>.*)'
+        r"^(?P<time>\d\d/\d\d/\d\d \d\d:\d\d:\d\d)\s+"
+        r"(?P<level>[A-Z]+)\s+(?P<service>[^:]+):\s*(?P<message>.*)"
     ),
     "APACHE_ERR": re.compile(
-        r'^\[(?P<time>\w{3} \w{3} \d+ [\d:]+ \d{4})\]\s+'
-        r'\[(?P<level>\w+)\]\s+(?P<message>.+)'
+        r"^\[(?P<time>\w{3} \w{3} \d+ [\d:]+ \d{4})\]\s+"
+        r"\[(?P<level>\w+)\]\s+(?P<message>.+)"
     ),
     "WINCBS": re.compile(
-        r'^(?P<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),\s+'
-        r'(?P<level>\w+)\s+(?P<service>\w+)\s+(?P<message>.+)'
+        r"^(?P<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),\s+"
+        r"(?P<level>\w+)\s+(?P<service>\w+)\s+(?P<message>.+)"
     ),
     "HDFS": re.compile(
-        r'^(?P<date>\d{6})\s+(?P<time>\d{6})\s+(?P<pid>\d+)\s+'
-        r'(?P<level>[A-Z]+)\s+(?P<service>\S+?):\s+(?P<message>.+)'
+        r"^(?P<date>\d{6})\s+(?P<time>\d{6})\s+(?P<pid>\d+)\s+"
+        r"(?P<level>[A-Z]+)\s+(?P<service>\S+?):\s+(?P<message>.+)"
     ),
     "HPC": re.compile(
-        r'^(?P<label>-|[A-Z0-9_]+)\s+(?P<epoch>\d{9,10})\s+'
-        r'(?P<date>\d{4}\.\d\d\.\d\d)\s+(?P<node>\S+)\s+(?P<message>.+)'
+        r"^(?P<label>-|[A-Z0-9_]+)\s+(?P<epoch>\d{9,10})\s+"
+        r"(?P<date>\d{4}\.\d\d\.\d\d)\s+(?P<node>\S+)\s+(?P<message>.+)"
     ),
     "HEALTHAPP": re.compile(
-        r'^(?P<time>\d{8}-\d{1,2}:\d{1,2}:\d{1,2}:\d+)\|'
-        r'(?P<service>[^|]+)\|(?P<pid>[^|]+)\|(?P<message>.+)'
+        r"^(?P<time>\d{8}-\d{1,2}:\d{1,2}:\d{1,2}:\d+)\|"
+        r"(?P<service>[^|]+)\|(?P<pid>[^|]+)\|(?P<message>.+)"
     ),
     "PROXIFIER": re.compile(
-        r'^\[(?P<time>[\d.]+ [\d:]+)\]\s+'
-        r'(?P<service>\S+?\.exe(?:\s+\*\d+)?)\s+-\s+(?P<message>.+)'
+        r"^\[(?P<time>[\d.]+ [\d:]+)\]\s+"
+        r"(?P<service>\S+?\.exe(?:\s+\*\d+)?)\s+-\s+(?P<message>.+)"
     ),
     "SYSLOG": re.compile(
-        r'(?P<time>\w+\s+\d+\s+[\d:]+) (?P<host>\S+) (?P<service>\S+?):? (?P<message>.+)'
+        r"(?P<time>\w+\s+\d+\s+[\d:]+) (?P<host>\S+) (?P<service>\S+?):? (?P<message>.+)"
     ),
     "STANDARD": re.compile(
-        r'(?P<time>\d{4}-\d{2}-\d{2}T[\d:]+Z)\s+(?P<level>\w+)\s+\[(?P<service>[^\]]+)\]\s+(?P<message>.+)'
+        r"(?P<time>\d{4}-\d{2}-\d{2}T[\d:]+Z)\s+(?P<level>\w+)\s+\[(?P<service>[^\]]+)\]\s+(?P<message>.+)"
     ),
     "LOGLENS": re.compile(
-        r'(?P<time>\d{4}-\d{2}-\d{2}T[\d:]+Z)\s+(?P<level>\w+)\s+(?P<service>\S+)\s+(?P<message>.+)'
+        r"(?P<time>\d{4}-\d{2}-\d{2}T[\d:]+Z)\s+(?P<level>\w+)\s+(?P<service>\S+)\s+(?P<message>.+)"
     ),
 }
 
@@ -71,13 +74,26 @@ _FACILITY_SEV_RE = re.compile(
     re.IGNORECASE,
 )
 SYSLOG_SEVERITY = {
-    0: "EMERGENCY", 1: "ALERT", 2: "CRITICAL", 3: "ERROR",
-    4: "WARN", 5: "NOTICE", 6: "INFO", 7: "DEBUG",
+    0: "EMERGENCY",
+    1: "ALERT",
+    2: "CRITICAL",
+    3: "ERROR",
+    4: "WARN",
+    5: "NOTICE",
+    6: "INFO",
+    7: "DEBUG",
 }
 _TEXT_SEVERITY = {
-    "emerg": "EMERGENCY", "alert": "ALERT", "crit": "CRITICAL",
-    "err": "ERROR", "error": "ERROR", "warning": "WARN", "warn": "WARN",
-    "notice": "NOTICE", "info": "INFO", "debug": "DEBUG",
+    "emerg": "EMERGENCY",
+    "alert": "ALERT",
+    "crit": "CRITICAL",
+    "err": "ERROR",
+    "error": "ERROR",
+    "warning": "WARN",
+    "warn": "WARN",
+    "notice": "NOTICE",
+    "info": "INFO",
+    "debug": "DEBUG",
 }
 
 
@@ -97,12 +113,25 @@ _PLAINTEXT_LEVEL_RE = re.compile(
     re.IGNORECASE,
 )
 _PLAINTEXT_LEVEL_MAP = {
-    "emerg": "EMERGENCY", "emergency": "EMERGENCY", "alert": "ALERT",
-    "crit": "CRITICAL", "critical": "CRITICAL", "fatal": "CRITICAL",
-    "severe": "CRITICAL", "error": "ERROR", "err": "ERROR",
-    "exception": "ERROR", "fail": "ERROR", "failed": "ERROR",
-    "failure": "ERROR", "warn": "WARN", "warning": "WARN",
-    "notice": "NOTICE", "debug": "DEBUG", "trace": "DEBUG", "info": "INFO",
+    "emerg": "EMERGENCY",
+    "emergency": "EMERGENCY",
+    "alert": "ALERT",
+    "crit": "CRITICAL",
+    "critical": "CRITICAL",
+    "fatal": "CRITICAL",
+    "severe": "CRITICAL",
+    "error": "ERROR",
+    "err": "ERROR",
+    "exception": "ERROR",
+    "fail": "ERROR",
+    "failed": "ERROR",
+    "failure": "ERROR",
+    "warn": "WARN",
+    "warning": "WARN",
+    "notice": "NOTICE",
+    "debug": "DEBUG",
+    "trace": "DEBUG",
+    "info": "INFO",
 }
 
 
@@ -130,13 +159,23 @@ def status_to_level(status: int) -> str:
 
 
 GCP_SEVERITY = {
-    "DEFAULT": "INFO", "DEBUG": "DEBUG", "INFO": "INFO", "NOTICE": "NOTICE",
-    "WARNING": "WARN", "ERROR": "ERROR", "CRITICAL": "CRITICAL",
-    "ALERT": "ALERT", "EMERGENCY": "EMERGENCY",
+    "DEFAULT": "INFO",
+    "DEBUG": "DEBUG",
+    "INFO": "INFO",
+    "NOTICE": "NOTICE",
+    "WARNING": "WARN",
+    "ERROR": "ERROR",
+    "CRITICAL": "CRITICAL",
+    "ALERT": "ALERT",
+    "EMERGENCY": "EMERGENCY",
 }
 AZURE_LEVEL = {
-    "informational": "INFO", "information": "INFO", "verbose": "DEBUG",
-    "warning": "WARN", "error": "ERROR", "critical": "CRITICAL",
+    "informational": "INFO",
+    "information": "INFO",
+    "verbose": "DEBUG",
+    "warning": "WARN",
+    "error": "ERROR",
+    "critical": "CRITICAL",
 }
 
 
@@ -150,11 +189,15 @@ def _dig(d: dict, path: str, default=""):
     return cur
 
 
-def detect_cloud_provider(d: dict) -> Optional[str]:
+def detect_cloud_provider(d: dict) -> str | None:
     if "eventSource" in d or ("eventName" in d and "awsRegion" in d):
         return "AWS"
-    if ("logName" in d or "protoPayload" in d or "jsonPayload" in d
-            or (isinstance(d.get("resource"), dict) and "severity" in d)):
+    if (
+        "logName" in d
+        or "protoPayload" in d
+        or "jsonPayload" in d
+        or (isinstance(d.get("resource"), dict) and "severity" in d)
+    ):
         return "GCP"
     if "resourceId" in d and ("operationName" in d or "category" in d):
         return "AZURE"
@@ -163,7 +206,7 @@ def detect_cloud_provider(d: dict) -> Optional[str]:
     return None
 
 
-def map_cloud_json(d: dict, line: str) -> Optional[LogEntry]:
+def map_cloud_json(d: dict, line: str) -> LogEntry | None:
     provider = detect_cloud_provider(d)
     if provider is None:
         return None
@@ -219,11 +262,7 @@ def map_cloud_json(d: dict, line: str) -> Optional[LogEntry]:
         lvl = str(d.get("level", "")).lower()
         level = AZURE_LEVEL.get(lvl, "INFO")
         service = d.get("category") or d.get("resourceId") or "azure"
-        message = (
-            d.get("operationName")
-            or _dig(d, "properties.statusMessage", "")
-            or ""
-        )
+        message = d.get("operationName") or _dig(d, "properties.statusMessage", "") or ""
         return LogEntry(
             timestamp=str(d.get("time", "")),
             level=level,
@@ -258,7 +297,7 @@ def detect_format(line: str) -> str:
     return "PLAINTEXT"
 
 
-def parse_line(line: str, fmt: str) -> Optional[LogEntry]:
+def parse_line(line: str, fmt: str) -> LogEntry | None:
     line = line.strip()
     if not line:
         return None
@@ -276,10 +315,21 @@ def parse_line(line: str, fmt: str) -> Optional[LogEntry]:
                 service=str(data.get("service", data.get("logger", "unknown"))),
                 message=str(data.get("message", data.get("msg", line))),
                 raw=line,
-                metadata={k: v for k, v in data.items()
-                          if k not in ("timestamp", "time", "level",
-                                       "severity", "service", "logger",
-                                       "message", "msg")},
+                metadata={
+                    k: v
+                    for k, v in data.items()
+                    if k
+                    not in (
+                        "timestamp",
+                        "time",
+                        "level",
+                        "severity",
+                        "service",
+                        "logger",
+                        "message",
+                        "msg",
+                    )
+                },
             )
         if fmt == "STANDARD":
             m = PATTERNS["STANDARD"].match(line)
@@ -299,7 +349,7 @@ def parse_line(line: str, fmt: str) -> Optional[LogEntry]:
                     timestamp=m.group("time"),
                     level=status_to_level(status),
                     service=fmt.lower(),
-                    message=f'{m.group("method")} {m.group("path")} {status}',
+                    message=f"{m.group('method')} {m.group('path')} {status}",
                     raw=line,
                     metadata={"ip": m.group("ip"), "status": m.group("status")},
                 )
@@ -307,8 +357,8 @@ def parse_line(line: str, fmt: str) -> Optional[LogEntry]:
             m = PATTERNS["HDFS"].match(line)
             if m:
                 return LogEntry(
-                    timestamp=f'{m.group("date")} {m.group("time")}',
-                    level=_norm_level(m.group("level")),   # FATAL->CRITICAL
+                    timestamp=f"{m.group('date')} {m.group('time')}",
+                    level=_norm_level(m.group("level")),  # FATAL->CRITICAL
                     service=m.group("service").rstrip(":"),
                     message=m.group("message").strip(),
                     raw=line,
@@ -320,7 +370,7 @@ def parse_line(line: str, fmt: str) -> Optional[LogEntry]:
             if m:
                 msg = m.group("message").strip()
                 lvl = _syslog_level(line)
-                if lvl == "INFO":           
+                if lvl == "INFO":
                     lvl = infer_level(msg)
                 return LogEntry(
                     timestamp=m.group("time"),
@@ -405,13 +455,24 @@ def parse_line(line: str, fmt: str) -> Optional[LogEntry]:
                     raw=line,
                 )
         return LogEntry(
-            timestamp="", level=infer_level(line), service="unknown",
-            message=line, raw=line, parsed=False,
+            timestamp="",
+            level=infer_level(line),
+            service="unknown",
+            message=line,
+            raw=line,
+            parsed=False,
         )
-    except Exception:
+    except Exception as exc:
+        # Never let one malformed line abort a whole file — degrade to an
+        # unparsed entry. Logged at debug since noisy logs are the norm.
+        logger.debug("parse fell back to raw (%s: %s)", type(exc).__name__, exc)
         return LogEntry(
-            timestamp="", level="INFO", service="unknown",
-            message=line, raw=line, parsed=False,
+            timestamp="",
+            level="INFO",
+            service="unknown",
+            message=line,
+            raw=line,
+            parsed=False,
         )
 
 
@@ -428,15 +489,19 @@ _MAX_CONTINUATION = 200
 
 
 class StreamParser:
-
-    def __init__(self, fmt: Optional[str] = None):
+    def __init__(self, fmt: str | None = None):
         self.forced_fmt = fmt
-        self.sticky: Optional[str] = fmt
-        self.first_format: Optional[str] = None
-        self._pending: Optional[LogEntry] = None
+        self.sticky: str | None = fmt
+        self.first_format: str | None = None
+        self._pending: LogEntry | None = None
         self._pending_continuations = 0
-        self.stats = {"lines": 0, "blank": 0, "continuations": 0,
-                      "fallback": 0, "format_switches": 0}
+        self.stats = {
+            "lines": 0,
+            "blank": 0,
+            "continuations": 0,
+            "fallback": 0,
+            "format_switches": 0,
+        }
 
     def _sticky_matches(self, line: str) -> bool:
         fmt = self.sticky
@@ -462,15 +527,17 @@ class StreamParser:
         self.sticky = detected
         return detected
 
-    def feed(self, line: str) -> Optional[LogEntry]:
+    def feed(self, line: str) -> LogEntry | None:
         self.stats["lines"] += 1
         if not line.strip():
             self.stats["blank"] += 1
             return None
 
-        if (self._pending is not None
-                and self._pending_continuations < _MAX_CONTINUATION
-                and _CONTINUATION_RE.match(line)):
+        if (
+            self._pending is not None
+            and self._pending_continuations < _MAX_CONTINUATION
+            and _CONTINUATION_RE.match(line)
+        ):
             self._pending.message += " | " + line.strip()
             self._pending.raw += "\n" + line.rstrip("\n")
             self._pending_continuations += 1
@@ -488,7 +555,7 @@ class StreamParser:
         self._pending_continuations = 0
         return completed
 
-    def flush(self) -> Optional[LogEntry]:
+    def flush(self) -> LogEntry | None:
         completed, self._pending = self._pending, None
         return completed
 

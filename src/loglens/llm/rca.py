@@ -1,15 +1,15 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import List, Sequence
 
-from loglens.models import LogEntry
 from loglens.llm.client import LLMClient
 from loglens.llm.config import LLMConfig
 from loglens.llm.transport import TokenUsage
+from loglens.models import LogEntry
 
-MAX_ANOMALY_LINES = 40       
-MAX_CONTEXT_LINES = 20      
+MAX_ANOMALY_LINES = 40
+MAX_CONTEXT_LINES = 20
 MAX_LINE_CHARS = 300
 
 SYSTEM_PROMPT = (
@@ -35,7 +35,7 @@ ASK_SYSTEM_PROMPT = (
 
 @dataclass
 class RCAResult:
-    report: str          
+    report: str
     provider: str
     model: str
     anomalies_sent: int  # how many anomaly lines were included
@@ -44,7 +44,7 @@ class RCAResult:
 
 def _clip(s: str) -> str:
     s = s.strip()
-    return s if len(s) <= MAX_LINE_CHARS else s[: MAX_LINE_CHARS] + "…"
+    return s if len(s) <= MAX_LINE_CHARS else s[:MAX_LINE_CHARS] + "…"
 
 
 def build_rca_context(
@@ -55,7 +55,7 @@ def build_rca_context(
     source_name: str = "",
 ) -> str:
     """Build a compact, privacy-conscious context block for the LLM."""
-    parts: List[str] = []
+    parts: list[str] = []
     if source_name:
         parts.append(f"Log source: {source_name}")
     parts.append(f"Total anomalies detected locally: {len(anomalies)}")
@@ -82,14 +82,18 @@ def run_rca(
     if not anomalies:
         return RCAResult(
             report="No anomalies were detected — nothing to analyze. ✅",
-            provider=config.provider, model=config.model, anomalies_sent=0,
+            provider=config.provider,
+            model=config.model,
+            anomalies_sent=0,
         )
     context = build_rca_context(anomalies, scores, reasons, context_lines, source_name)
     client = LLMClient(config)
-    resp = client.chat([
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": context},
-    ])
+    resp = client.chat(
+        [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": context},
+        ]
+    )
     return RCAResult(
         report=resp.content,
         provider=config.provider,
@@ -111,14 +115,18 @@ def run_ask(
     if not anomalies:
         return RCAResult(
             report="No anomalies were detected — there is nothing to ask about. ✅",
-            provider=config.provider, model=config.model, anomalies_sent=0,
+            provider=config.provider,
+            model=config.model,
+            anomalies_sent=0,
         )
     context = build_rca_context(anomalies, scores, reasons, source_name=source_name)
     client = LLMClient(config)
-    resp = client.chat([
-        {"role": "system", "content": ASK_SYSTEM_PROMPT},
-        {"role": "user", "content": f"{context}\n\n--- QUESTION ---\n{question}"},
-    ])
+    resp = client.chat(
+        [
+            {"role": "system", "content": ASK_SYSTEM_PROMPT},
+            {"role": "user", "content": f"{context}\n\n--- QUESTION ---\n{question}"},
+        ]
+    )
     return RCAResult(
         report=resp.content,
         provider=config.provider,
@@ -131,6 +139,7 @@ def run_ask(
 def save_report(result: RCAResult, path: str, source_name: str = "") -> None:
     """Save an RCA report as a markdown file."""
     import datetime
+
     header = (
         f"# LogLens AI — Root-Cause Analysis\n\n"
         f"- **Source:** {source_name or 'n/a'}\n"

@@ -1,14 +1,17 @@
 import numpy as np
-import pytest
 
 from loglens.models import LogEntry
 from loglens.pipeline.detector import (
-    detect, detect_anomalies, cluster_summary,
-    get_severity, otsu_threshold, DetectorConfig,
+    DetectorConfig,
+    cluster_summary,
+    detect,
+    detect_anomalies,
+    get_severity,
+    otsu_threshold,
 )
 
-
 # --- helpers ---
+
 
 def make_entry(msg: str, level: str = "INFO", service: str = "svc") -> LogEntry:
     return LogEntry(
@@ -28,6 +31,7 @@ def dummy_vectors(n: int, dim: int = 16, seed: int = 0) -> np.ndarray:
 
 # --- basic contracts ---
 
+
 def test_empty_input():
     res = detect([], np.zeros((0, 16)))
     assert res.summary()["entries"] == 0
@@ -42,6 +46,7 @@ def test_severity_mapping():
 
 
 # --- flagging behaviour ---
+
 
 def test_critical_always_flagged():
     """FATAL / CRITICAL must always be flagged regardless of clustering."""
@@ -76,6 +81,7 @@ def test_error_keyword_boosts_score():
 
 # --- grouping & summary ---
 
+
 def test_anomaly_groups_have_templates():
     entries = [make_entry(f"disk read ok {i}", "INFO") for i in range(20)]
     for _ in range(6):
@@ -91,8 +97,9 @@ def test_anomaly_groups_have_templates():
 
 def test_incident_mode_triggers_on_high_severe_share():
     """If >=30% of entries are ERROR+, incident_mode should be True."""
-    entries = ([make_entry("service crash error", "ERROR") for _ in range(6)]
-               + [make_entry("ok", "INFO") for _ in range(4)])
+    entries = [make_entry("service crash error", "ERROR") for _ in range(6)] + [
+        make_entry("ok", "INFO") for _ in range(4)
+    ]
     vecs = dummy_vectors(len(entries))
     res = detect(entries, vecs)
     assert res.incident_mode is True
@@ -124,7 +131,6 @@ def test_config_from_sensitivity():
     assert low.flag_threshold > high.flag_threshold
 
 
-
 def test_otsu_threshold_returns_none_on_tiny_input():
     assert otsu_threshold(np.array([0.4, 0.6])) is None
 
@@ -139,39 +145,37 @@ def test_otsu_threshold_finds_valley():
 
 
 def test_auto_threshold_config_toggle():
-    entries = ([make_entry(f"disk ok {i}", "INFO") for i in range(40)]
-               + [make_entry("payment failed declined", "ERROR")
-                  for _ in range(8)])
+    entries = [make_entry(f"disk ok {i}", "INFO") for i in range(40)] + [
+        make_entry("payment failed declined", "ERROR") for _ in range(8)
+    ]
     vecs = dummy_vectors(len(entries))
     cfg = DetectorConfig(auto_threshold=True)
     res = detect(entries, vecs, cfg)
     assert "threshold_used" in res.meta
     assert res.meta["auto_threshold"] is True
 
+
 def test_scores_never_saturate_to_identical_ones():
     entries = [make_entry(f"routine ok {i % 3}", "INFO") for i in range(40)]
     entries.append(make_entry("disk failure detected raid degraded", "FATAL"))
     entries.append(make_entry("oom killer invoked pid 4242", "FATAL"))
-    for _ in range(20):   # repetitive FATAL drone vs the two novel ones
+    for _ in range(20):  # repetitive FATAL drone vs the two novel ones
         entries.append(make_entry("watchdog heartbeat missed", "FATAL"))
     res = detect(entries, dummy_vectors(len(entries)))
-    fatal_scores = [float(res.scores[i]) for i, e in enumerate(entries)
-                    if e.level == "FATAL"]
+    fatal_scores = [float(res.scores[i]) for i, e in enumerate(entries) if e.level == "FATAL"]
     assert all(s < 1.0 for s in fatal_scores), "no score may saturate at 1.0"
-    assert all(res.flagged[i] for i, e in enumerate(entries)
-               if e.level == "FATAL"), "hard-flag levels stay flagged"
+    assert all(res.flagged[i] for i, e in enumerate(entries) if e.level == "FATAL"), (
+        "hard-flag levels stay flagged"
+    )
 
 
 def test_history_damp_never_hits_tight_bursts():
     entries = []
-    for _ in range(30):    # early tight ERROR burst = early incident
-        entries.append(make_entry("raid controller failure disk offline",
-                                  "ERROR"))
+    for _ in range(30):  # early tight ERROR burst = early incident
+        entries.append(make_entry("raid controller failure disk offline", "ERROR"))
     for i in range(400):
         entries.append(make_entry(f"request ok {i % 7}", "INFO"))
     res = detect(entries, dummy_vectors(len(entries)))
-    err_flags = [bool(res.flagged[i]) for i, e in enumerate(entries)
-                 if e.level == "ERROR"]
+    err_flags = [bool(res.flagged[i]) for i, e in enumerate(entries) if e.level == "ERROR"]
     assert all(err_flags), "early burst must stay flagged"
-    assert not any("routine by own history" in r
-                   for i in range(30) for r in res.reasons[i])
+    assert not any("routine by own history" in r for i in range(30) for r in res.reasons[i])

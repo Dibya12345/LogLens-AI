@@ -1,10 +1,22 @@
-
 from loglens._version import __version__
 
-__all__ = ["analyze", "analyze_async", "analyze_entries", "AnalysisResult",
-           "Anomaly", "LiveDetector", "LogLensHandler", "RunConfig",
-           "init", "Monitor", "SlackAlerter", "TeamsAlerter",
-           "EmailAlerter", "AlertDispatcher", "__version__"]
+__all__ = [
+    "analyze",
+    "analyze_async",
+    "analyze_entries",
+    "AnalysisResult",
+    "Anomaly",
+    "LiveDetector",
+    "LogLensHandler",
+    "RunConfig",
+    "init",
+    "Monitor",
+    "SlackAlerter",
+    "TeamsAlerter",
+    "EmailAlerter",
+    "AlertDispatcher",
+    "__version__",
+]
 
 _LAZY = {
     "Anomaly": ("loglens.api", "Anomaly"),
@@ -29,6 +41,7 @@ def __getattr__(name):
     if target is None:
         raise AttributeError(f"module 'loglens' has no attribute {name!r}")
     import importlib
+
     mod = importlib.import_module(target[0])
     return getattr(mod, target[1])
 

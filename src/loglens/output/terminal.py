@@ -1,12 +1,13 @@
 import time
+
 from rich.progress import (
+    BarColumn,
     Progress,
     SpinnerColumn,
-    BarColumn,
     TextColumn,
     TimeElapsedColumn,
 )
-from rich.console import Console
+
 
 class LiveProgress:
     def __init__(self, total: int = 0):
@@ -25,9 +26,7 @@ class LiveProgress:
     def start(self):
         self.start_time = time.time()
         self.progress.start()
-        self.task_id = self.progress.add_task(
-            "Processing...", total=self.total, speed="0 lines/s"
-        )
+        self.task_id = self.progress.add_task("Processing...", total=self.total, speed="0 lines/s")
 
     def update(self, count: int):
         elapsed = time.time() - self.start_time

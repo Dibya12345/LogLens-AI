@@ -1,24 +1,32 @@
 import json
 
 import numpy as np
-import pytest
 
 from loglens.models import LogEntry
 from loglens.pipeline.benchmark import (
-    score_prf1, load_labeled, evaluate, grid_search,
-    train_supervised, build_feature_matrix, run_benchmark,
+    build_feature_matrix,
+    evaluate,
+    grid_search,
+    load_labeled,
+    run_benchmark,
+    score_prf1,
+    train_supervised,
 )
 
 
 def _synthetic_corpus(n_normal: int = 60, n_anom: int = 20):
     entries, labels = [], []
     for i in range(n_normal):
-        entries.append(LogEntry("2024-01-01T00:00:00Z", "INFO", "web",
-                                f"request served ok id={i}", "raw"))
+        entries.append(
+            LogEntry("2024-01-01T00:00:00Z", "INFO", "web", f"request served ok id={i}", "raw")
+        )
         labels.append(0)
     for i in range(n_anom):
-        entries.append(LogEntry("2024-01-01T00:00:00Z", "ERROR", "db",
-                                f"connection refused timeout id={i}", "raw"))
+        entries.append(
+            LogEntry(
+                "2024-01-01T00:00:00Z", "ERROR", "db", f"connection refused timeout id={i}", "raw"
+            )
+        )
         labels.append(1)
     return entries, np.array(labels)
 
@@ -35,8 +43,7 @@ def test_prf1_all_wrong():
 
 def test_load_labeled_bgl(tmp_path):
     p = tmp_path / "bgl.log"
-    p.write_text("- INFO node boot ok\n"
-                 "KERNEL_PANIC FATAL kernel panic on cpu0\n")
+    p.write_text("- INFO node boot ok\nKERNEL_PANIC FATAL kernel panic on cpu0\n")
     entries, labels = load_labeled(str(p), fmt="bgl")
     assert len(entries) == 2
     assert labels.tolist() == [0, 1]
@@ -44,8 +51,12 @@ def test_load_labeled_bgl(tmp_path):
 
 def test_load_labeled_jsonl(tmp_path):
     p = tmp_path / "d.jsonl"
-    p.write_text(json.dumps({"label": 0, "line": "all good"}) + "\n" +
-                 json.dumps({"label": 1, "line": "disk failure error"}) + "\n")
+    p.write_text(
+        json.dumps({"label": 0, "line": "all good"})
+        + "\n"
+        + json.dumps({"label": 1, "line": "disk failure error"})
+        + "\n"
+    )
     entries, labels = load_labeled(str(p), fmt="jsonl")
     assert labels.tolist() == [0, 1]
 
@@ -91,8 +102,7 @@ def test_supervised_head_learns_separable_labels():
 
 
 def test_run_benchmark_smoke(tmp_path):
-    lines = (["- INFO heartbeat ok"] * 40 +
-             ["ERR ERROR payment declined timeout"] * 15)
+    lines = ["- INFO heartbeat ok"] * 40 + ["ERR ERROR payment declined timeout"] * 15
     p = tmp_path / "bench.log"
     p.write_text("\n".join(lines))
     out = run_benchmark(str(p), fmt="bgl", do_grid=True, do_supervised=True)

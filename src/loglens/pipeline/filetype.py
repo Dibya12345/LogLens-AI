@@ -65,9 +65,7 @@ def _looks_binary(sample: bytes) -> bool:
         pass
     # Fall back to latin-1 (always decodes) and count non-printable bytes.
     text = sample.decode("latin-1")
-    printable = sum(
-        1 for ch in text if ch in "\t\n\r\f\v" or 32 <= ord(ch) < 127 or ord(ch) >= 160
-    )
+    printable = sum(1 for ch in text if ch in "\t\n\r\f\v" or 32 <= ord(ch) < 127 or ord(ch) >= 160)
     nonprintable_ratio = 1 - (printable / len(text))
     return nonprintable_ratio > 0.30
 
@@ -107,10 +105,9 @@ def check_source(source: str) -> None:
         with open(source, "rb") as f:
             sample = f.read(_SNIFF_BYTES)
     except OSError as e:
-        raise InvalidSourceError(f"Can't read '{source}': {e}")
+        raise InvalidSourceError(f"Can't read '{source}': {e}") from e
 
     if _looks_binary(sample):
         raise InvalidSourceError(
-            f"'{source}' looks like a binary file, not a text log. "
-            f"LogLens reads plain-text logs."
+            f"'{source}' looks like a binary file, not a text log. LogLens reads plain-text logs."
         )

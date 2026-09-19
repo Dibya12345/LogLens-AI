@@ -2,15 +2,21 @@ from __future__ import annotations
 
 import html as _html
 from collections import Counter
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Dict, List, Optional, Sequence
 
 from loglens.models import LogEntry
 
 LEVEL_COLORS = {
-    "EMERGENCY": "#ff2d55", "FATAL": "#ff375f", "CRITICAL": "#ff453a",
-    "ERROR": "#ff6b6b", "WARN": "#ffd60a", "WARNING": "#ffd60a",
-    "NOTICE": "#ffe28a", "INFO": "#8b949e", "DEBUG": "#6e7681",
+    "EMERGENCY": "#ff2d55",
+    "FATAL": "#ff375f",
+    "CRITICAL": "#ff453a",
+    "ERROR": "#ff6b6b",
+    "WARN": "#ffd60a",
+    "WARNING": "#ffd60a",
+    "NOTICE": "#ffe28a",
+    "INFO": "#8b949e",
+    "DEBUG": "#6e7681",
 }
 
 
@@ -24,12 +30,12 @@ def _md_to_html(md: str) -> str:
         s = line.strip()
         if s.startswith("- ") or s.startswith("* "):
             if not in_list:
-                out.append("<​ul>")
+                out.append("<ul>")
                 in_list = True
             out.append(f"<li>{_esc(s[2:])}</li>")
             continue
         if in_list:
-            out.append("<​/ul>")
+            out.append("</ul>")
             in_list = False
         if s.startswith("### "):
             out.append(f"<h4>{_esc(s[4:])}</h4>")
@@ -40,12 +46,17 @@ def _md_to_html(md: str) -> str:
         elif s:
             out.append(f"<p>{_esc(s)}</p>")
     if in_list:
-        out.append("<​/ul>")
+        out.append("</ul>")
     return "\n".join(out)
 
 
-def _bar_chart(pairs: List[tuple], colors: Optional[List[str]] = None,
-               width: int = 640, bar_h: int = 22, gap: int = 8) -> str:
+def _bar_chart(
+    pairs: list[tuple],
+    colors: list[str] | None = None,
+    width: int = 640,
+    bar_h: int = 22,
+    gap: int = 8,
+) -> str:
     if not pairs:
         return ""
     maxv = max(v for _, v in pairs) or 1
@@ -55,20 +66,21 @@ def _bar_chart(pairs: List[tuple], colors: Optional[List[str]] = None,
     for i, (label, v) in enumerate(pairs):
         y = gap + i * (bar_h + gap)
         w = max(2, int((width - label_w - 90) * v / maxv))
-        c = (colors[i] if colors and i < len(colors) else "#58a6ff")
+        c = colors[i] if colors and i < len(colors) else "#58a6ff"
         rows.append(
             f"<text x='{label_w - 8}' y='{y + bar_h - 6}' text-anchor='end' "
             f"fill='#8b949e' font-size='12'>{_esc(str(label)[:22])}</text>"
-            f"<​rect x='{label_w}' y='{y}' width='{w}' height='{bar_h}' rx='4' fill='{c}'/>"
+            f"<rect x='{label_w}' y='{y}' width='{w}' height='{bar_h}' rx='4' fill='{c}'/>"
             f"<text x='{label_w + w + 8}' y='{y + bar_h - 6}' fill='#e6edf3' "
             f"font-size='12' font-weight='700'>{v:,}</text>"
         )
-    return (f"<svg viewBox='0 0 {width} {h}' width='100%' "
-            f"xmlns='http://www.w3.org/2000/svg'>{''.join(rows)}</svg>")
+    return (
+        f"<svg viewBox='0 0 {width} {h}' width='100%' "
+        f"xmlns='http://www.w3.org/2000/svg'>{''.join(rows)}</svg>"
+    )
 
 
-def _histogram(values: Sequence[float], bins: int = 20,
-               width: int = 640, height: int = 140) -> str:
+def _histogram(values: Sequence[float], bins: int = 20, width: int = 640, height: int = 140) -> str:
     if not values:
         return ""
     counts = [0] * bins
@@ -81,43 +93,53 @@ def _histogram(values: Sequence[float], bins: int = 20,
     for i, c in enumerate(counts):
         bh = int((height - 30) * c / maxc)
         color = "#ff6b6b" if (i / bins) >= 0.7 else "#58a6ff"
-        bars.append(f"<​rect x='{i * bw + 1:.1f}' y='{height - 20 - bh}' "
-                    f"width='{bw - 2:.1f}' height='{bh}' rx='2' fill='{color}'/>")
-    axis = (f"<text x='0' y='{height - 4}' fill='#8b949e' font-size='11'>0.0</text>"
-            f"<text x='{width * 0.7:.0f}' y='{height - 4}' fill='#ff6b6b' font-size='11'>0.70 threshold</text>"
-            f"<text x='{width - 24}' y='{height - 4}' fill='#8b949e' font-size='11'>1.0</text>"
-            f"<​line x1='{width * 0.7:.0f}' y1='0' x2='{width * 0.7:.0f}' y2='{height - 22}' "
-            f"stroke='#ff6b6b' stroke-dasharray='4 4' stroke-width='1'/>")
-    return (f"<svg viewBox='0 0 {width} {height}' width='100%' "
-            f"xmlns='http://www.w3.org/2000/svg'>{''.join(bars)}{axis}</svg>")
+        bars.append(
+            f"<rect x='{i * bw + 1:.1f}' y='{height - 20 - bh}' "
+            f"width='{bw - 2:.1f}' height='{bh}' rx='2' fill='{color}'/>"
+        )
+    axis = (
+        f"<text x='0' y='{height - 4}' fill='#8b949e' font-size='11'>0.0</text>"
+        f"<text x='{width * 0.7:.0f}' y='{height - 4}' fill='#ff6b6b' font-size='11'>0.70 threshold</text>"
+        f"<text x='{width - 24}' y='{height - 4}' fill='#8b949e' font-size='11'>1.0</text>"
+        f"<line x1='{width * 0.7:.0f}' y1='0' x2='{width * 0.7:.0f}' y2='{height - 22}' "
+        f"stroke='#ff6b6b' stroke-dasharray='4 4' stroke-width='1'/>"
+    )
+    return (
+        f"<svg viewBox='0 0 {width} {height}' width='100%' "
+        f"xmlns='http://www.w3.org/2000/svg'>{''.join(bars)}{axis}</svg>"
+    )
 
 
-def render_html_report(source: str, total_lines: int,
-                       anomalies: List[LogEntry],
-                       level_counts: Dict[str, int],
-                       rca_markdown: Optional[str] = None,
-                       rca_meta: Optional[dict] = None,
-                       scores: Optional[Sequence[float]] = None) -> str:
+def render_html_report(
+    source: str,
+    total_lines: int,
+    anomalies: list[LogEntry],
+    level_counts: dict[str, int],
+    rca_markdown: str | None = None,
+    rca_meta: dict | None = None,
+    scores: Sequence[float] | None = None,
+) -> str:
     n = len(anomalies)
     rate = (n / total_lines * 100) if total_lines else 0.0
 
     chips = "".join(
-        f"<span class='chip' style='border-color:{LEVEL_COLORS.get(l.upper(), '#8b949e')};"
-        f"color:{LEVEL_COLORS.get(l.upper(), '#8b949e')}'>{_esc(l)}: {c}</span>"
-        for l, c in sorted(level_counts.items(), key=lambda kv: -kv[1]))
+        f"<span class='chip' style='border-color:{LEVEL_COLORS.get(lvl.upper(), '#8b949e')};"
+        f"color:{LEVEL_COLORS.get(lvl.upper(), '#8b949e')}'>{_esc(lvl)}: {cnt}</span>"
+        for lvl, cnt in sorted(level_counts.items(), key=lambda kv: -kv[1])
+    )
 
     rows = "".join(
         f"<tr><td><span class='lvl' style='background:"
         f"{LEVEL_COLORS.get(a.level.upper(), '#8b949e')}'>{_esc(a.level)}</span></td>"
         f"<td>{_esc(a.service)}</td><td class='msg'>{_esc(a.message[:200])}</td></tr>"
-        for a in anomalies[:200])
-    more = (f"<p class='dim'>… and {n - 200:,} more anomalies not shown.</p>"
-            if n > 200 else "")
+        for a in anomalies[:200]
+    )
+    more = f"<p class='dim'>… and {n - 200:,} more anomalies not shown.</p>" if n > 200 else ""
 
     lvl_pairs = sorted(level_counts.items(), key=lambda kv: -kv[1])
     lvl_chart = _bar_chart(
-        lvl_pairs,
-        colors=[LEVEL_COLORS.get(l.upper(), "#8b949e") for l, _ in lvl_pairs])
+        lvl_pairs, colors=[LEVEL_COLORS.get(lvl.upper(), "#8b949e") for lvl, _ in lvl_pairs]
+    )
     svc_counts = Counter(a.service for a in anomalies).most_common(10)
     svc_chart = _bar_chart(svc_counts)
     score_chart = _histogram(list(scores)) if scores else ""
@@ -164,7 +186,7 @@ def render_html_report(source: str, total_lines: int,
 </head>
 <body>
   <h1>🔍 LogLens AI Report</h1>
-  <p class="dim">Source: {_esc(source)} &nbsp;•&nbsp; Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+  <p class="dim">Source: {_esc(source)} &nbsp;•&nbsp; Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
 
   <div class="card">
     <div class="stats">

@@ -31,7 +31,7 @@ FROM python:3.12-slim AS runtime
 LABEL org.opencontainers.image.title="LogLens AI" \
       org.opencontainers.image.description="AI-powered log anomaly detection & incident grouping: local, fast, explainable." \
       org.opencontainers.image.url="https://loglensai.com" \
-      org.opencontainers.image.source="https://github.com/ParasRajput810/LogLens-AI" \
+      org.opencontainers.image.source="https://github.com/LoglensAI/LogLens-AI" \
       org.opencontainers.image.documentation="https://loglensai.com/docs" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.vendor="LogLens AI"

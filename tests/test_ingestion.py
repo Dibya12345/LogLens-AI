@@ -1,21 +1,24 @@
 import os
-import pytest
 import tempfile
-from unittest.mock import patch, MagicMock, AsyncMock
-from loglens.pipeline.ingestion import get_reader, stream_lines
-from loglens.pipeline.ingestion.file import AsyncFileReader
-from loglens.pipeline.ingestion.stdin import AsyncStdinReader
-from loglens.pipeline.ingestion.http import AsyncHTTPReader
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
+from loglens.pipeline.ingestion import get_reader
+from loglens.pipeline.ingestion.file import AsyncFileReader
+from loglens.pipeline.ingestion.http import AsyncHTTPReader
+from loglens.pipeline.ingestion.stdin import AsyncStdinReader
 
 
 def test_get_reader_returns_file_reader():
     reader = get_reader("tests/fixtures/sample.log")
     assert isinstance(reader, AsyncFileReader)
 
+
 def test_get_reader_returns_stdin_reader():
     reader = get_reader("stdin")
     assert isinstance(reader, AsyncStdinReader)
+
 
 def test_get_reader_returns_http_reader():
     reader = get_reader("https://example.com/app.log")

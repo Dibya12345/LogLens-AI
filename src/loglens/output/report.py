@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-
 import html
-from typing import Optional
 
 import numpy as np
 
@@ -19,14 +17,17 @@ def _svg_bar_chart(pairs, width=460, bar_h=26, gap=10):
         w = int((val / mx) * (width - 150))
         rows.append(
             f'<g transform="translate(0,{y})">'
-            f'<text x="0" y="{bar_h*0.7:.0f}" class="lbl">{html.escape(str(label))}</text>'
-            f'<rect x="110" y="2" width="{max(w,2)}" height="{bar_h-4}" rx="3" class="bar"/>'
-            f'<text x="{115+max(w,2)}" y="{bar_h*0.7:.0f}" class="val">{val:,}</text>'
-            f'</g>')
+            f'<text x="0" y="{bar_h * 0.7:.0f}" class="lbl">{html.escape(str(label))}</text>'
+            f'<rect x="110" y="2" width="{max(w, 2)}" height="{bar_h - 4}" rx="3" class="bar"/>'
+            f'<text x="{115 + max(w, 2)}" y="{bar_h * 0.7:.0f}" class="val">{val:,}</text>'
+            f"</g>"
+        )
         y += bar_h + gap
     h = y
-    return (f'<svg viewBox="0 0 {width} {h}" width="100%" '
-            f'style="max-width:{width}px">{"".join(rows)}</svg>')
+    return (
+        f'<svg viewBox="0 0 {width} {h}" width="100%" '
+        f'style="max-width:{width}px">{"".join(rows)}</svg>'
+    )
 
 
 def _score_histogram(scores, threshold, width=460, height=140, bins=20):
@@ -42,14 +43,20 @@ def _score_histogram(scores, threshold, width=460, height=140, bins=20):
         bh = (c / mx) * (height - 20)
         x = i * bw
         color = "#e04b4b" if edges[i] >= threshold else "#4b9ce0"
-        bars.append(f'<rect x="{x:.1f}" y="{height-20-bh:.1f}" '
-                    f'width="{bw-1:.1f}" height="{bh:.1f}" fill="{color}"/>')
+        bars.append(
+            f'<rect x="{x:.1f}" y="{height - 20 - bh:.1f}" '
+            f'width="{bw - 1:.1f}" height="{bh:.1f}" fill="{color}"/>'
+        )
     tx = threshold * width
-    bars.append(f'<line x1="{tx:.1f}" y1="0" x2="{tx:.1f}" y2="{height-20}" '
-                f'stroke="#111" stroke-dasharray="4 3"/>')
-    bars.append(f'<text x="{tx+3:.1f}" y="12" class="val">thr {threshold:.2f}</text>')
-    return (f'<svg viewBox="0 0 {width} {height}" width="100%" '
-            f'style="max-width:{width}px">{"".join(bars)}</svg>')
+    bars.append(
+        f'<line x1="{tx:.1f}" y1="0" x2="{tx:.1f}" y2="{height - 20}" '
+        f'stroke="#111" stroke-dasharray="4 3"/>'
+    )
+    bars.append(f'<text x="{tx + 3:.1f}" y="12" class="val">thr {threshold:.2f}</text>')
+    return (
+        f'<svg viewBox="0 0 {width} {height}" width="100%" '
+        f'style="max-width:{width}px">{"".join(bars)}</svg>'
+    )
 
 
 def render_html(result: DetectionResult, title: str = "LogLens Report") -> str:
@@ -71,12 +78,16 @@ def render_html(result: DetectionResult, title: str = "LogLens Report") -> str:
             f"<td class='num'>{g.count:,}</td>"
             f"<td>{html.escape(', '.join(g.services))}</td>"
             f"<td class='tmpl'>{html.escape(g.template[:120])}</td>"
-            f"<td class='reasons'>{html.escape('; '.join(g.reasons[:4]))}</td></tr>")
+            f"<td class='reasons'>{html.escape('; '.join(g.reasons[:4]))}</td></tr>"
+        )
     if not group_rows:
         group_rows = ["<tr><td colspan='6' class='muted'>No anomaly groups flagged.</td></tr>"]
 
-    incident = (f"<div class='banner'>{html.escape(result.incident_note)}</div>"
-                if result.incident_mode and result.incident_note else "")
+    incident = (
+        f"<div class='banner'>{html.escape(result.incident_note)}</div>"
+        if result.incident_mode and result.incident_note
+        else ""
+    )
 
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -113,31 +124,30 @@ th{{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase}}
 text{{font-family:inherit}}
 </style></head><body>
 <h1>{html.escape(title)}</h1>
-<div class="muted">{s['entries']:,} entries · {meta.get('unique_templates',0):,} templates ·
-threshold {meta.get('threshold_used',0):.2f}</div>
+<div class="muted">{s["entries"]:,} entries · {meta.get("unique_templates", 0):,} templates ·
+threshold {meta.get("threshold_used", 0):.2f}</div>
 {incident}
 <div class="cards">
-<div class="card"><div class="n">{s['anomalies']:,}</div><div class="k">Anomalies</div></div>
-<div class="card"><div class="n">{s['anomaly_groups']:,}</div><div class="k">Groups</div></div>
-<div class="card"><div class="n">{s['clusters']:,}</div><div class="k">Clusters</div></div>
-<div class="card"><div class="n">{meta.get('chronic_templates',0):,}</div><div class="k">Chronic</div></div>
-<div class="card"><div class="n">{meta.get('global_rare_templates',0):,}</div><div class="k">Globally rare</div></div>
+<div class="card"><div class="n">{s["anomalies"]:,}</div><div class="k">Anomalies</div></div>
+<div class="card"><div class="n">{s["anomaly_groups"]:,}</div><div class="k">Groups</div></div>
+<div class="card"><div class="n">{s["clusters"]:,}</div><div class="k">Clusters</div></div>
+<div class="card"><div class="n">{meta.get("chronic_templates", 0):,}</div><div class="k">Chronic</div></div>
+<div class="card"><div class="n">{meta.get("global_rare_templates", 0):,}</div><div class="k">Globally rare</div></div>
 </div>
 <div class="grid">
 <div class="panel"><h2>Severity mix</h2>{_svg_bar_chart(sev_pairs)}</div>
 <div class="panel"><h2>Score distribution</h2>
-{_score_histogram(result.scores, float(meta.get('threshold_used',0.7)))}</div>
+{_score_histogram(result.scores, float(meta.get("threshold_used", 0.7)))}</div>
 </div>
 <h2>Top anomaly groups</h2>
 <table><thead><tr><th>Level</th><th class="num">Score</th><th class="num">Count</th>
 <th>Services</th><th>Template</th><th>Why</th></tr></thead>
-<tbody>{''.join(group_rows)}</tbody></table>
+<tbody>{"".join(group_rows)}</tbody></table>
 <p class="muted" style="margin-top:24px">Generated by LogLens.</p>
 </body></html>"""
 
 
-def write_report(result: DetectionResult, path: str,
-                 title: str = "LogLens Report") -> str:
+def write_report(result: DetectionResult, path: str, title: str = "LogLens Report") -> str:
     out = render_html(result, title=title)
     with open(path, "w", encoding="utf-8") as f:
         f.write(out)

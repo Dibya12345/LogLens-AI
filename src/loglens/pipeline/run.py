@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import List, Optional, Sequence
 
 import numpy as np
 
 from loglens.models import LogEntry
 from loglens.pipeline.detector import (
-    DetectorConfig, DetectionResult, detect,
+    DetectionResult,
+    DetectorConfig,
+    detect,
 )
 from loglens.pipeline.embeddings import EmbeddingEngine
 from loglens.pipeline.templates import TemplateRegistry
@@ -16,26 +17,27 @@ from loglens.pipeline.templates import TemplateRegistry
 
 @dataclass
 class RunConfig:
-    mode: str = "fast"                 
-    sensitivity: str = "normal"        
-    template_level: bool = True       
+    mode: str = "fast"
+    sensitivity: str = "normal"
+    template_level: bool = True
     auto_threshold: bool = False
-    threshold: Optional[float] = None  
-    eps: Optional[float] = None
+    threshold: float | None = None
+    eps: float | None = None
     min_samples: int = 4
 
 
 def _build_engine(mode: str):
     if mode == "deep":
         from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
+
         return DeepEmbeddingEngine()
     return EmbeddingEngine()
 
 
-def run(entries: Sequence[LogEntry],
-        config: Optional[RunConfig] = None,
-        baseline: Optional[dict] = None) -> DetectionResult:
-    
+def run(
+    entries: Sequence[LogEntry], config: RunConfig | None = None, baseline: dict | None = None
+) -> DetectionResult:
+
     cfg = config or RunConfig()
     entries = list(entries)
     det_cfg = DetectorConfig.from_sensitivity(
@@ -48,8 +50,7 @@ def run(entries: Sequence[LogEntry],
         det_cfg.flag_threshold = float(cfg.threshold)
 
     if not entries:
-        return detect(entries, np.zeros((0, 1), dtype=np.float32),
-                      det_cfg, baseline=baseline)
+        return detect(entries, np.zeros((0, 1), dtype=np.float32), det_cfg, baseline=baseline)
 
     engine = _build_engine(cfg.mode)
     engine.fit(entries)
@@ -63,6 +64,7 @@ def run(entries: Sequence[LogEntry],
     return detect(entries, embeddings, det_cfg, baseline=baseline)
 
 
-def run_turbo(path: str, workers: Optional[int] = None) -> dict:
+def run_turbo(path: str, workers: int | None = None) -> dict:
     from loglens.pipeline.turbo import analyze
+
     return analyze(path, workers=workers)

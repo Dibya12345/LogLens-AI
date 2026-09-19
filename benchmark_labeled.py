@@ -8,7 +8,7 @@ from loglens.pipeline.run import run, RunConfig
 
 try:
     from eval_harness import threshold_sweep
-except Exception:
+except ImportError:
     threshold_sweep = None
 
 

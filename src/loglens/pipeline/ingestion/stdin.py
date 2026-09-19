@@ -1,6 +1,7 @@
-import sys
 import asyncio
-from typing import AsyncIterator
+import sys
+from collections.abc import AsyncIterator
+
 
 class AsyncStdinReader:
     async def __aiter__(self) -> AsyncIterator[str]:

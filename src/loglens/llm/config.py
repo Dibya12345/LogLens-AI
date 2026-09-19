@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Optional
 
 from loglens.llm.transport import LLMError
 
@@ -27,7 +26,7 @@ class LLMConfig:
     provider: str = ""
     api_key: str = ""
     model: str = ""
-    azure: Optional[AzureOptions] = None
+    azure: AzureOptions | None = None
     # request behaviour
     temperature: float = 0.2
     max_tokens: int = 1200
@@ -35,7 +34,7 @@ class LLMConfig:
     retries: int = 2
 
     @classmethod
-    def from_env(cls, provider: str = "", model: str = "", api_key: str = "") -> "LLMConfig":
+    def from_env(cls, provider: str = "", model: str = "", api_key: str = "") -> LLMConfig:
         provider = (provider or os.getenv("LOGLENS_LLM_PROVIDER", "")).lower().strip()
         api_key = api_key or os.getenv("LOGLENS_LLM_API_KEY", "")
         model = model or os.getenv("LOGLENS_LLM_MODEL", "")
@@ -50,7 +49,7 @@ class LLMConfig:
         if not api_key:
             raise LLMError("Missing API key. Set LOGLENS_LLM_API_KEY (or pass --api-key).")
 
-        azure: Optional[AzureOptions] = None
+        azure: AzureOptions | None = None
         if provider == "azure":
             azure = AzureOptions(
                 endpoint=os.getenv("LOGLENS_AZURE_ENDPOINT", "").rstrip("/"),
@@ -59,8 +58,7 @@ class LLMConfig:
             )
             if not azure.endpoint:
                 raise LLMError(
-                    "Azure requires LOGLENS_AZURE_ENDPOINT "
-                    "(https://<resource>.openai.azure.com)."
+                    "Azure requires LOGLENS_AZURE_ENDPOINT (https://<resource>.openai.azure.com)."
                 )
             if not azure.deployment:
                 raise LLMError("Azure requires LOGLENS_AZURE_DEPLOYMENT (or LOGLENS_LLM_MODEL).")

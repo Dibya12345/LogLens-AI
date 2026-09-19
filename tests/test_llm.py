@@ -1,4 +1,5 @@
 """Mocked tests for the LLM layer — no network, no real API keys."""
+
 import io
 import json
 import os
@@ -7,32 +8,35 @@ from unittest import mock
 
 import pytest
 
-from loglens.llm import LLMConfig, AzureOptions, LLMClient, LLMError, TokenUsage, LLMResponse
+from loglens.llm import AzureOptions, LLMClient, LLMConfig, LLMError, LLMResponse, TokenUsage
 from loglens.llm.providers import get_provider
-from loglens.llm.rca import run_rca, run_ask, build_rca_context, save_report, RCAResult
-from loglens.output.html_report import render_html_report
+from loglens.llm.rca import RCAResult, build_rca_context, run_ask, run_rca, save_report
 from loglens.models import LogEntry
+from loglens.output.html_report import render_html_report
 
 
 def _fake_response(content="## Incident Summary\nAll good.", usage=None):
-    body = json.dumps({
-        "choices": [{"message": {"content": content}}],
-        "usage": usage or {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150},
-    }).encode("utf-8")
+    body = json.dumps(
+        {
+            "choices": [{"message": {"content": content}}],
+            "usage": usage or {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150},
+        }
+    ).encode("utf-8")
 
     class FakeResp(io.BytesIO):
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
 
     return FakeResp(body)
 
 
 def _cfg(provider="openai", **kw):
-    defaults = dict(provider=provider, api_key="test-key", model="test-model")
+    defaults = {"provider": provider, "api_key": "test-key", "model": "test-model"}
     if provider == "azure":
-        defaults["azure"] = AzureOptions(
-            endpoint="https://res.openai.azure.com", deployment="chat"
-        )
+        defaults["azure"] = AzureOptions(endpoint="https://res.openai.azure.com", deployment="chat")
     defaults.update(kw)
     return LLMConfig(**defaults)
 
@@ -41,7 +45,6 @@ ANOMALIES = [
     LogEntry(level="CRITICAL", service="db", message="replication lag critical 500s"),
     LogEntry(level="ERROR", service="api", message="connection refused to db:5432"),
 ]
-
 
 
 class TestLLMConfig:
@@ -156,11 +159,9 @@ class TestLLMClient:
         assert m_open.call_count == 1  # 401 is not retried
 
 
-
-
 class TestRCA:
     def test_context_includes_anomalies_and_caps(self):
-        many = ANOMALIES * 50 
+        many = ANOMALIES * 50
         ctx = build_rca_context(many, source_name="x.log")
         assert "replication lag" in ctx
         assert ctx.count("[CRITICAL]") + ctx.count("[ERROR]") == 40
@@ -187,9 +188,13 @@ class TestRCA:
         assert "Because the DB lagged." in res.report
 
     def test_save_report(self, tmp_path):
-        res = RCAResult(report="## Summary\nok", provider="openai",
-                        model="gpt-4o-mini", anomalies_sent=2,
-                        usage=TokenUsage(total_tokens=150))
+        res = RCAResult(
+            report="## Summary\nok",
+            provider="openai",
+            model="gpt-4o-mini",
+            anomalies_sent=2,
+            usage=TokenUsage(total_tokens=150),
+        )
         path = tmp_path / "rca.md"
         save_report(res, str(path), source_name="x.log")
         text = path.read_text()
@@ -199,16 +204,20 @@ class TestRCA:
 class TestHTMLReport:
     def test_render_basic(self):
         html_doc = render_html_report(
-            source="x.log", total_lines=100, anomalies=ANOMALIES,
+            source="x.log",
+            total_lines=100,
+            anomalies=ANOMALIES,
             level_counts={"CRITICAL": 1, "ERROR": 1},
         )
         assert "DOCTYPE html" in html_doc
         assert "replication lag" in html_doc
-        assert "AI Root-Cause" not in html_doc  
+        assert "AI Root-Cause" not in html_doc
 
     def test_render_with_rca(self):
         html_doc = render_html_report(
-            source="x.log", total_lines=100, anomalies=ANOMALIES,
+            source="x.log",
+            total_lines=100,
+            anomalies=ANOMALIES,
             level_counts={"ERROR": 2},
             rca_markdown="## Incident Summary\nDB failed.",
             rca_meta={"provider": "azure", "model": "chat", "tokens": 150},

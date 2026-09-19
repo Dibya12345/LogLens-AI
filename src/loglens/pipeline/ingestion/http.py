@@ -1,5 +1,7 @@
+from collections.abc import AsyncIterator
+
 import aiohttp
-from typing import AsyncIterator
+
 
 class AsyncHTTPReader:
     def __init__(self, url: str):

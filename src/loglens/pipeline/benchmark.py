@@ -3,8 +3,8 @@ from __future__ import annotations
 import itertools
 import json
 import statistics as _st
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 import joblib
 import numpy as np
@@ -14,9 +14,11 @@ from sklearn.model_selection import StratifiedKFold, train_test_split
 
 from loglens.models import LogEntry
 from loglens.pipeline.detector import (
-    DetectorConfig, detect, get_severity,
+    DetectorConfig,
+    detect,
+    get_severity,
 )
-from loglens.pipeline.embeddings import EmbeddingEngine, extract_features, features_cached
+from loglens.pipeline.embeddings import EmbeddingEngine, features_cached
 from loglens.pipeline.parser import detect_format, parse_line
 
 
@@ -32,13 +34,15 @@ class Metrics:
     support_pos: int
     n: int
 
-    def as_dict(self) -> Dict[str, float]:
+    def as_dict(self) -> dict[str, float]:
         return self.__dict__.copy()
 
     def __str__(self) -> str:
-        return (f"P={self.precision:.3f}  R={self.recall:.3f}  "
-                f"F1={self.f1:.3f}  (tp={self.tp} fp={self.fp} "
-                f"fn={self.fn} tn={self.tn}, pos={self.support_pos}/{self.n})")
+        return (
+            f"P={self.precision:.3f}  R={self.recall:.3f}  "
+            f"F1={self.f1:.3f}  (tp={self.tp} fp={self.fp} "
+            f"fn={self.fn} tn={self.tn}, pos={self.support_pos}/{self.n})"
+        )
 
 
 def score_prf1(y_true: Sequence[int], y_pred: Sequence[bool]) -> Metrics:
@@ -54,7 +58,7 @@ def score_prf1(y_true: Sequence[int], y_pred: Sequence[bool]) -> Metrics:
     return Metrics(p, r, f, tp, fp, fn, tn, int(yt.sum()), len(yt))
 
 
-def _iter_labeled(path: str, fmt: str) -> Iterable[Tuple[int, str]]:
+def _iter_labeled(path: str, fmt: str) -> Iterable[tuple[int, str]]:
     with open(path, encoding="utf-8", errors="ignore") as fh:
         for line in fh:
             line = line.rstrip("\n")
@@ -73,10 +77,10 @@ def _iter_labeled(path: str, fmt: str) -> Iterable[Tuple[int, str]]:
                 raise ValueError(f"unknown label format: {fmt}")
 
 
-def load_labeled(path: str, fmt: str = "bgl",
-                 limit: Optional[int] = None
-                 ) -> Tuple[List[LogEntry], np.ndarray]:
-    raw: List[Tuple[int, str]] = []
+def load_labeled(
+    path: str, fmt: str = "bgl", limit: int | None = None
+) -> tuple[list[LogEntry], np.ndarray]:
+    raw: list[tuple[int, str]] = []
     for i, (lab, text) in enumerate(_iter_labeled(path, fmt)):
         if limit is not None and i >= limit:
             break
@@ -85,23 +89,26 @@ def load_labeled(path: str, fmt: str = "bgl",
         return [], np.zeros(0, dtype=int)
 
     log_fmt = detect_format(raw[0][1])
-    entries: List[LogEntry] = []
-    labels: List[int] = []
+    entries: list[LogEntry] = []
+    labels: list[int] = []
     for lab, text in raw:
         e = parse_line(text, log_fmt)
         if e is None:
-            e = LogEntry(timestamp="", level="INFO", service="unknown",
-                         message=text, raw=text, parsed=False)
+            e = LogEntry(
+                timestamp="", level="INFO", service="unknown", message=text, raw=text, parsed=False
+            )
         entries.append(e)
         labels.append(int(lab))
     return entries, np.asarray(labels, dtype=int)
 
 
-def evaluate(entries: Sequence[LogEntry],
-             labels: Sequence[int],
-             cfg: Optional[DetectorConfig] = None,
-             feature_weight: Optional[float] = None,
-             min_df: Optional[int] = None) -> Tuple[Metrics, object]:
+def evaluate(
+    entries: Sequence[LogEntry],
+    labels: Sequence[int],
+    cfg: DetectorConfig | None = None,
+    feature_weight: float | None = None,
+    min_df: int | None = None,
+) -> tuple[Metrics, object]:
     kwargs = {}
     if feature_weight is not None:
         kwargs["feature_weight"] = feature_weight
@@ -116,9 +123,9 @@ def evaluate(entries: Sequence[LogEntry],
 @dataclass
 class GridResult:
     best_f1: float
-    best_params: Dict[str, float]
+    best_params: dict[str, float]
     best_metrics: Metrics
-    table: List[Dict[str, float]] = field(default_factory=list)
+    table: list[dict[str, float]] = field(default_factory=list)
 
 
 DEFAULT_GRID = {
@@ -127,60 +134,67 @@ DEFAULT_GRID = {
 }
 
 
-def grid_search(entries: Sequence[LogEntry],
-                labels: Sequence[int],
-                grid: Optional[Dict[str, List[float]]] = None
-                ) -> GridResult:
+def grid_search(
+    entries: Sequence[LogEntry],
+    labels: Sequence[int],
+    grid: dict[str, list[float]] | None = None,
+) -> GridResult:
     grid = grid or DEFAULT_GRID
     fws = grid.get("feature_weight", [None])
     ths = grid.get("flag_threshold", [0.70])
     mdfs = grid.get("min_df", [None])
 
-    best: Optional[GridResult] = None
-    table: List[Dict[str, float]] = []
+    best: GridResult | None = None
+    table: list[dict[str, float]] = []
     for fw, th, mdf in itertools.product(fws, ths, mdfs):
         cfg = DetectorConfig(flag_threshold=th)
-        m, _ = evaluate(entries, labels, cfg,
-                        feature_weight=fw, min_df=mdf)
-        row = {"feature_weight": fw, "flag_threshold": th,
-               "min_df": mdf, "precision": m.precision,
-               "recall": m.recall, "f1": m.f1}
+        m, _ = evaluate(entries, labels, cfg, feature_weight=fw, min_df=mdf)
+        row = {
+            "feature_weight": fw,
+            "flag_threshold": th,
+            "min_df": mdf,
+            "precision": m.precision,
+            "recall": m.recall,
+            "f1": m.f1,
+        }
         table.append(row)
         if best is None or m.f1 > best.best_f1:
             best = GridResult(
                 best_f1=m.f1,
-                best_params={"feature_weight": fw,
-                             "flag_threshold": th, "min_df": mdf},
-                best_metrics=m, table=table)
+                best_params={"feature_weight": fw, "flag_threshold": th, "min_df": mdf},
+                best_metrics=m,
+                table=table,
+            )
     if best is None:
         raise ValueError("empty grid")
     best.table = table
     return best
 
 
-def build_feature_matrix(entries: Sequence[LogEntry],
-                         scores: np.ndarray) -> np.ndarray:
-    sev = np.array([get_severity(e.level) for e in entries],
-                   dtype=np.float32) / 7.0
+def build_feature_matrix(entries: Sequence[LogEntry], scores: np.ndarray) -> np.ndarray:
+    sev = np.array([get_severity(e.level) for e in entries], dtype=np.float32) / 7.0
     logf = np.array([features_cached(e) for e in entries], dtype=np.float32)
     return np.column_stack([scores.astype(np.float32), sev, logf])
 
 
 class SupervisedHead:
-
-    def __init__(self, model: str = "rf", class_weight: str = "balanced",
-                 max_iter: int = 1000, n_estimators: int = 300,
-                 random_state: int = 0):
+    def __init__(
+        self,
+        model: str = "rf",
+        class_weight: str = "balanced",
+        max_iter: int = 1000,
+        n_estimators: int = 300,
+        random_state: int = 0,
+    ):
         if model == "rf":
             self.clf = RandomForestClassifier(
-                n_estimators=n_estimators, class_weight=class_weight,
-                random_state=random_state)
+                n_estimators=n_estimators, class_weight=class_weight, random_state=random_state
+            )
         else:
-            self.clf = LogisticRegression(class_weight=class_weight,
-                                          max_iter=max_iter)
+            self.clf = LogisticRegression(class_weight=class_weight, max_iter=max_iter)
         self.fitted = False
 
-    def fit(self, X: np.ndarray, y: Sequence[int]) -> "SupervisedHead":
+    def fit(self, X: np.ndarray, y: Sequence[int]) -> SupervisedHead:
         self.clf.fit(X, np.asarray(y, dtype=int))
         self.fitted = True
         return self
@@ -195,7 +209,7 @@ class SupervisedHead:
         joblib.dump({"clf": self.clf, "version": 1}, path, compress=3)
 
     @classmethod
-    def load(cls, path: str) -> "SupervisedHead":
+    def load(cls, path: str) -> SupervisedHead:
         obj = cls.__new__(cls)
         blob = joblib.load(path)
         obj.clf = blob["clf"] if isinstance(blob, dict) else blob
@@ -203,11 +217,12 @@ class SupervisedHead:
         return obj
 
 
-def train_supervised(entries: Sequence[LogEntry],
-                     labels: Sequence[int],
-                     test_size: float = 0.4,
-                     random_state: int = 0
-                     ) -> Tuple[SupervisedHead, Metrics]:
+def train_supervised(
+    entries: Sequence[LogEntry],
+    labels: Sequence[int],
+    test_size: float = 0.4,
+    random_state: int = 0,
+) -> tuple[SupervisedHead, Metrics]:
     engine = EmbeddingEngine()
     vecs = engine.embed(list(entries))
     res = detect(list(entries), vecs, DetectorConfig())
@@ -216,18 +231,20 @@ def train_supervised(entries: Sequence[LogEntry],
 
     stratify = y if len(set(y.tolist())) > 1 else None
     Xtr, Xte, ytr, yte = train_test_split(
-        X, y, test_size=test_size, random_state=random_state,
-        stratify=stratify)
+        X, y, test_size=test_size, random_state=random_state, stratify=stratify
+    )
     head = SupervisedHead().fit(Xtr, ytr)
     metrics = score_prf1(yte, head.predict(Xte))
     return head, metrics
 
 
-def cross_validate_supervised(entries: Sequence[LogEntry],
-                              labels: Sequence[int],
-                              n_splits: int = 5,
-                              model: str = "rf",
-                              random_state: int = 0) -> Dict[str, object]:
+def cross_validate_supervised(
+    entries: Sequence[LogEntry],
+    labels: Sequence[int],
+    n_splits: int = 5,
+    model: str = "rf",
+    random_state: int = 0,
+) -> dict[str, object]:
     engine = EmbeddingEngine()
     vecs = engine.embed(list(entries))
     res = detect(list(entries), vecs, DetectorConfig())
@@ -236,24 +253,30 @@ def cross_validate_supervised(entries: Sequence[LogEntry],
     if len(set(y.tolist())) < 2:
         raise ValueError("need both classes present for cross-validation")
 
-    skf = StratifiedKFold(n_splits=n_splits, shuffle=True,
-                          random_state=random_state)
+    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
     ps, rs, fs = [], [], []
     for tr, te in skf.split(X, y):
         head = SupervisedHead(model=model).fit(X[tr], y[tr])
         m = score_prf1(y[te], head.predict(X[te]))
-        ps.append(m.precision); rs.append(m.recall); fs.append(m.f1)
+        ps.append(m.precision)
+        rs.append(m.recall)
+        fs.append(m.f1)
 
-    def _ms(a): return {"mean": sum(a) / len(a),
-                        "std": _st.pstdev(a) if len(a) > 1 else 0.0}
-    return {"folds": n_splits, "model": model,
-            "precision": _ms(ps), "recall": _ms(rs), "f1": _ms(fs)}
+    def _ms(a):
+        return {"mean": sum(a) / len(a), "std": _st.pstdev(a) if len(a) > 1 else 0.0}
+
+    return {
+        "folds": n_splits,
+        "model": model,
+        "precision": _ms(ps),
+        "recall": _ms(rs),
+        "f1": _ms(fs),
+    }
 
 
-def train_and_save(entries: Sequence[LogEntry],
-                   labels: Sequence[int],
-                   out_path: str,
-                   model: str = "rf") -> SupervisedHead:
+def train_and_save(
+    entries: Sequence[LogEntry], labels: Sequence[int], out_path: str, model: str = "rf"
+) -> SupervisedHead:
     engine = EmbeddingEngine()
     vecs = engine.embed(list(entries))
     res = detect(list(entries), vecs, DetectorConfig())
@@ -263,14 +286,19 @@ def train_and_save(entries: Sequence[LogEntry],
     return head
 
 
-def run_benchmark(path: str, fmt: str = "bgl",
-                  limit: Optional[int] = None,
-                  do_grid: bool = False,
-                  do_supervised: bool = False) -> Dict[str, object]:
+def run_benchmark(
+    path: str,
+    fmt: str = "bgl",
+    limit: int | None = None,
+    do_grid: bool = False,
+    do_supervised: bool = False,
+) -> dict[str, object]:
     entries, labels = load_labeled(path, fmt, limit=limit)
-    out: Dict[str, object] = {
-        "dataset": path, "format": fmt,
-        "entries": len(entries), "positives": int(labels.sum()),
+    out: dict[str, object] = {
+        "dataset": path,
+        "format": fmt,
+        "entries": len(entries),
+        "positives": int(labels.sum()),
     }
     if not entries:
         return out

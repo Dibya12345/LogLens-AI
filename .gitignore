@@ -34,7 +34,5 @@ tests/fixtures/sample.log
 .DS_Store
 Thumbs.db
 
-benchmarks/*.logdatasets/
-datasets/
-datasets/
+benchmarks/*.log
 datasets/
