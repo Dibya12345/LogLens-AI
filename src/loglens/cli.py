@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import warnings
 
 import typer
 from rich.console import Console
@@ -168,7 +169,8 @@ def analyze(
 
         if turbo:
             console.print(f"\n[bold cyan][LogLens][/bold cyan] Source: [yellow]{source}[/yellow]")
-            console.print("[bold cyan][LogLens][/bold cyan] Mode: [bold magenta]⚡ Turbo (parallel scan)[/bold magenta]")
+            console.print("[bold cyan][LogLens][/bold cyan] Mode: [bold magenta]⚡ Turbo (parallel heuristic scan)[/bold magenta]")
+            console.print("[dim]Note: Turbo mode uses aggressive pattern matching, which may yield different anomaly counts than the default ML mode.[/dim]")
             loop = asyncio.get_running_loop()
             res = await loop.run_in_executor(
                 None,
@@ -242,6 +244,8 @@ def analyze(
 
         console.print(f"\n[bold cyan][LogLens][/bold cyan] Source: [yellow]{source}[/yellow]")
         async for line in stream_lines(source):
+            if not line.strip():
+                continue # Skip blank lines to unify line parsing counts across modes
             line_count += 1
             if line_count == 1:
                 fmt = detect_format(line)
@@ -324,11 +328,21 @@ def analyze(
             import numpy as _np
             from loglens.pipeline.benchmark import (SupervisedHead,
                                                     build_feature_matrix)
+            
             try:
-                head = SupervisedHead.load(model_path)
+                # Wrap the unpickling process to aggressively silence sklearn version warnings
+                with warnings.catch_warnings():
+                    try:
+                        from sklearn.exceptions import InconsistentVersionWarning
+                        warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
+                    except ImportError:
+                        warnings.simplefilter("ignore")
+                        
+                    head = SupervisedHead.load(model_path)
             except Exception as exc:
                 console.print(f"[bold red]Could not load model '{model_path}': {exc}[/bold red]")
                 raise typer.Exit(code=1)
+                
             if used_default:
                 console.print(
                     "[bold cyan][LogLens][/bold cyan] Model:      "
