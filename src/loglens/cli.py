@@ -10,6 +10,12 @@ from rich.table import Table
 from loglens import __version__
 from loglens.models import LogEntry
 from loglens.output.terminal import LiveProgress
+from loglens.severity import (
+    CATEGORY_ORDER,
+    RICH_STYLE_DEFAULT,
+    RICH_STYLES,
+    get_severity,
+)
 
 _LOADED = False
 
@@ -27,7 +33,7 @@ def _load():
         detect_anomalies,
     )
     from loglens.pipeline.embeddings import EmbeddingEngine  # noqa: F401
-    from loglens.pipeline.grouping import group_anomalies, group_summaries  # noqa: F401
+    from loglens.pipeline.grouping import group_anomalies  # noqa: F401
     from loglens.pipeline.ingestion import (  # noqa: F401
         AsyncCommandReader,
         CommandError,
@@ -60,38 +66,6 @@ app = typer.Typer(
 
 console = Console()
 
-LEVEL_WEIGHT = {
-    "EMERGENCY": 6,
-    "FATAL": 5,
-    "CRITICAL": 5,
-    "ERROR": 4,
-    "WARN": 3,
-    "WARNING": 3,
-    "INFO": 1,
-    "DEBUG": 0,
-}
-CATEGORY_ORDER = [
-    "EMERGENCY",
-    "FATAL",
-    "CRITICAL",
-    "ERROR",
-    "WARN",
-    "WARNING",
-    "NOTICE",
-    "INFO",
-    "DEBUG",
-]
-CATEGORY_COLOR = {
-    "EMERGENCY": "bold red",
-    "FATAL": "bold red",
-    "CRITICAL": "bold red",
-    "ERROR": "red",
-    "WARN": "bold yellow",
-    "WARNING": "bold yellow",
-    "NOTICE": "yellow",
-    "INFO": "dim",
-    "DEBUG": "dim",
-}
 INFO_KEYWORDS = {"error", "fail", "timeout", "refused", "crash", "panic", "oom", "kill"}
 
 
@@ -105,7 +79,8 @@ def _level_color(lvl: str) -> str:
 
 
 def _severity(a) -> int:
-    return LEVEL_WEIGHT.get(a.level.upper(), 2)
+    # Canonical rank: 0 = most severe. Sort ascending for worst-first.
+    return get_severity(a.level)
 
 
 def _print_llm_config_hint():
@@ -520,7 +495,7 @@ def analyze(
         for idx, lvl in enumerate(ordered_levels):
             is_last = idx == len(ordered_levels) - 1
             branch = "└──" if is_last else "├──"
-            color = CATEGORY_COLOR.get(lvl, "white")
+            color = RICH_STYLES.get(lvl, RICH_STYLE_DEFAULT)
             console.print(
                 f"[bold cyan]          {branch}[/bold cyan] "
                 f"[{color}]{lvl:<10}[/{color}] : [bold]{level_counts[lvl]:,}[/bold]"
@@ -565,7 +540,7 @@ def analyze(
 
         # Sort
         if sort_by == "severity":
-            filtered_anomalies.sort(key=_severity, reverse=True)
+            filtered_anomalies.sort(key=_severity)
         elif sort_by == "service":
             filtered_anomalies.sort(key=lambda a: a.service)
         # "time" = keep original order

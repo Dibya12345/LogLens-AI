@@ -7,7 +7,7 @@ import time
 import numpy as np
 from typing import List, Tuple
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import numpy as np                                          
 from loglens.models import LogEntry                          

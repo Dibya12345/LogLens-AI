@@ -3,31 +3,17 @@ from __future__ import annotations
 import logging
 import math
 import os
-import re
 from dataclasses import dataclass
+
+from loglens.pipeline.templates import template_key
 
 logger = logging.getLogger("loglens.turbo")
 
-_RE_TS_ISO = re.compile(
-    r"\b\d{4}-\d{2}-\d{2}[t ]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?(?:z|[+-]\d{2}:?\d{2})?\b",
-    re.I,
-)
-_RE_UUID = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.I)
-_RE_IP = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}\b")
-_RE_NUMTOK = re.compile(r"\b[a-z_]*\d[\w]*\b", re.I)  # any token with a digit
-_RE_WS = re.compile(r"\s+")
-
 
 def mask_template(msg: str) -> str:
-    if not msg:
-        return "<empty>"
-    s = msg.lower()
-    s = _RE_TS_ISO.sub("<ts>", s)
-    s = _RE_UUID.sub("<uuid>", s)
-    s = _RE_IP.sub("<ip>", s)
-    s = _RE_NUMTOK.sub("<id>", s)
-    s = _RE_WS.sub(" ", s).strip()
-    return s or "<empty>"
+    """Template key for turbo's dedup. Delegates to the canonical masker so the
+    turbo path collapses messages the same way as the main pipeline."""
+    return template_key(msg) if msg else "<empty>"
 
 
 def auto_workers(

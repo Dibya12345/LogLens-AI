@@ -6,18 +6,7 @@ from collections.abc import Sequence
 from datetime import datetime
 
 from loglens.models import LogEntry
-
-LEVEL_COLORS = {
-    "EMERGENCY": "#ff2d55",
-    "FATAL": "#ff375f",
-    "CRITICAL": "#ff453a",
-    "ERROR": "#ff6b6b",
-    "WARN": "#ffd60a",
-    "WARNING": "#ffd60a",
-    "NOTICE": "#ffe28a",
-    "INFO": "#8b949e",
-    "DEBUG": "#6e7681",
-}
+from loglens.severity import WEB_COLORS as LEVEL_COLORS  # noqa: F401  (re-export)
 
 
 def _esc(s) -> str:

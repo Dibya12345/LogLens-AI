@@ -1,5 +1,3 @@
-
-
 import argparse, time
 from pathlib import Path
 

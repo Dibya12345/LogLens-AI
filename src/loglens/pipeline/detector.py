@@ -13,37 +13,12 @@ from sklearn.preprocessing import normalize
 from loglens.models import LogEntry
 from loglens.pipeline.templates import TemplateRegistry, parse_timestamp
 
-LEVEL_SEVERITY: dict[str, int] = {
-    "EMERGENCY": 0,
-    "EMERG": 0,
-    "PANIC": 0,
-    "ALERT": 1,
-    "FATAL": 1,
-    "CRITICAL": 2,
-    "CRIT": 2,
-    "ERROR": 3,
-    "ERR": 3,
-    "WARN": 4,
-    "WARNING": 4,
-    "NOTICE": 5,
-    "INFO": 6,
-    "DEBUG": 7,
-    "TRACE": 7,
-}
-DEFAULT_SEVERITY = 6
-HARD_FLAG_SEVERITY = 1
-
-SEVERITY_BASE: dict[int, float] = {
-    0: 1.0,
-    1: 1.0,  # hard-flagged anyway
-    2: 0.70,  # CRITICAL
-    3: 0.55,  # ERROR  (graded down: routine errors are common)
-    4: 0.42,  # WARN
-    5: 0.08,  # NOTICE
-    6: 0.0,  # INFO
-    7: 0.0,  # DEBUG/TRACE
-}
-
+from loglens.severity import (  # noqa: F401
+    DEFAULT_SEVERITY,
+    HARD_FLAG_SEVERITY,
+    SEVERITY_BASE,
+    get_severity,
+)
 
 CHRONIC_SHARE = 0.15
 CHRONIC_MIN_COUNT = 25
@@ -127,10 +102,6 @@ FAILURE_PATTERNS = [
     r"not responding",
 ]
 _FAILURE_RE = re.compile("|".join(FAILURE_PATTERNS), re.IGNORECASE)
-
-
-def get_severity(level: str) -> int:
-    return LEVEL_SEVERITY.get(level.upper(), DEFAULT_SEVERITY)
 
 
 def otsu_threshold(

@@ -121,7 +121,3 @@ class DeepEmbeddingEngine:
         for gi, g in enumerate(registry.groups):
             out[g.indices] = group_vecs[gi]
         return out
-
-
-def get_deep_engine() -> DeepEmbeddingEngine:
-    return DeepEmbeddingEngine()

@@ -10,24 +10,9 @@ from email.mime.text import MIMEText
 from pathlib import Path
 
 from loglens.api import Anomaly
+from loglens.severity import CARD_COLOR_DEFAULT, CARD_COLORS, EMOJI, EMOJI_DEFAULT
 
 logger = logging.getLogger("loglens.alerts")
-
-_LEVEL_EMOJI = {
-    "EMERGENCY": "🟥",
-    "ALERT": "🟥",
-    "FATAL": "🟥",
-    "CRITICAL": "🔴",
-    "ERROR": "🟠",
-    "WARN": "🟡",
-}
-_LEVEL_COLOR = {
-    "EMERGENCY": "#d13438",
-    "FATAL": "#d13438",
-    "CRITICAL": "#d13438",
-    "ERROR": "#ff8c00",
-    "WARN": "#ffd700",
-}
 
 
 def load_dotenv(path: str = ".env") -> None:
@@ -45,7 +30,7 @@ def load_dotenv(path: str = ".env") -> None:
 
 
 def _fmt_text(app: str, a: Anomaly, rca_line: str | None) -> str:
-    emoji = _LEVEL_EMOJI.get(a.level.upper(), "🔵")
+    emoji = EMOJI.get(a.level.upper(), EMOJI_DEFAULT)
     svc = f" · {a.service}" if a.service not in ("", "unknown") else ""
     lines = [f"{emoji} [{app}] {a.level}{svc} (score {a.score:.2f})", a.message]
     if rca_line:
@@ -88,7 +73,7 @@ class TeamsAlerter:
         card = {
             "@type": "MessageCard",
             "@context": "http://schema.org/extensions",
-            "themeColor": _LEVEL_COLOR.get(a.level.upper(), "#0078d4"),
+            "themeColor": CARD_COLORS.get(a.level.upper(), CARD_COLOR_DEFAULT),
             "summary": f"[{app}] {a.level}: {a.message[:80]}",
             "sections": [
                 {

@@ -62,9 +62,3 @@ def run(
         embeddings = engine.embed(entries)
 
     return detect(entries, embeddings, det_cfg, baseline=baseline)
-
-
-def run_turbo(path: str, workers: int | None = None) -> dict:
-    from loglens.pipeline.turbo import analyze
-
-    return analyze(path, workers=workers)

@@ -8,18 +8,9 @@ from datetime import datetime, timezone
 from loglens.api import Anomaly
 from loglens.live import LiveDetector
 from loglens.models import LogEntry
+from loglens.severity import canonical_level
 
 logger = logging.getLogger("loglens.handler")
-
-_LEVEL_ALIASES = {
-    "WARNING": "WARN",
-    "CRITICAL": "CRITICAL",
-    "FATAL": "CRITICAL",
-    "ERROR": "ERROR",
-    "INFO": "INFO",
-    "DEBUG": "DEBUG",
-    "NOTSET": "INFO",
-}
 
 
 class LogLensHandler(logging.Handler):
@@ -34,12 +25,13 @@ class LogLensHandler(logging.Handler):
         super().__init__(level)
         self.on_anomaly = on_anomaly
         self.detector = detector or LiveDetector(**detector_kwargs)
+        self._max_anomalies = 5000
         self.anomalies: list[Anomaly] = []
-        self._lock2 = threading.Lock()  # detector isn't thread-safe
+        self._lock = threading.Lock()  # detector isn't thread-safe
         self._reentry = threading.local()
 
     def _to_entry(self, record: logging.LogRecord) -> LogEntry:
-        lvl = _LEVEL_ALIASES.get(record.levelname.upper(), record.levelname.upper())
+        lvl = canonical_level(record.levelname)
         try:
             msg = record.getMessage()
         except Exception:
@@ -61,7 +53,7 @@ class LogLensHandler(logging.Handler):
             return
         self._reentry.active = True
         try:
-            with self._lock2:
+            with self._lock:
                 hits = self.detector.feed_entry(self._to_entry(record))
             for a in hits:
                 self._dispatch(a, record)
@@ -72,6 +64,8 @@ class LogLensHandler(logging.Handler):
 
     def _dispatch(self, anomaly: Anomaly, record: logging.LogRecord | None) -> None:
         self.anomalies.append(anomaly)
+        if len(self.anomalies) > self._max_anomalies:
+            del self.anomalies[: -self._max_anomalies]
         if self.on_anomaly is not None:
             try:
                 self.on_anomaly(anomaly)
@@ -87,7 +81,7 @@ class LogLensHandler(logging.Handler):
             return
         self._reentry.active = True
         try:
-            with self._lock2:
+            with self._lock:
                 hits = self.detector.flush()
             for a in hits:
                 self._dispatch(a, None)

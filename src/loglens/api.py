@@ -15,24 +15,6 @@ from loglens.pipeline.ingestion import stream_command, stream_lines
 from loglens.pipeline.parser import StreamParser
 from loglens.pipeline.run import RunConfig, run
 
-_LEVEL_WEIGHT = {
-    "EMERGENCY": 7,
-    "EMERG": 7,
-    "PANIC": 7,
-    "ALERT": 6,
-    "FATAL": 6,
-    "CRITICAL": 5,
-    "CRIT": 5,
-    "ERROR": 4,
-    "ERR": 4,
-    "WARN": 3,
-    "WARNING": 3,
-    "NOTICE": 2,
-    "INFO": 1,
-    "DEBUG": 0,
-    "TRACE": 0,
-}
-
 
 @dataclass
 class Anomaly:
@@ -45,10 +27,6 @@ class Anomaly:
     raw: str = ""
     index: int | None = None
     entry: LogEntry | None = field(default=None, repr=False)
-
-    @property
-    def severity(self) -> int:
-        return _LEVEL_WEIGHT.get(self.level.upper(), 2)
 
     def __str__(self) -> str:
         why = ("  [" + "; ".join(self.reasons) + "]") if self.reasons else ""

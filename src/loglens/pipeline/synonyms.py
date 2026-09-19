@@ -352,7 +352,3 @@ class SynonymLearner:
         merged = dict(BASE_SYNONYMS)
         merged.update(self.learned)
         return merged
-
-
-def get_learner() -> SynonymLearner:
-    return SynonymLearner()
