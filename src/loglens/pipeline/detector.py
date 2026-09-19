@@ -12,7 +12,6 @@ from sklearn.preprocessing import normalize
 
 from loglens.models import LogEntry
 from loglens.pipeline.templates import TemplateRegistry, parse_timestamp
-
 from loglens.severity import (  # noqa: F401
     DEFAULT_SEVERITY,
     HARD_FLAG_SEVERITY,
