@@ -5,9 +5,8 @@ import threading
 from collections.abc import Callable
 from datetime import datetime, timezone
 
-from loglens.api import Anomaly
 from loglens.live import LiveDetector
-from loglens.models import LogEntry
+from loglens.models import Anomaly, LogEntry
 from loglens.severity import canonical_level
 
 logger = logging.getLogger("loglens.handler")

@@ -8,11 +8,10 @@ import threading
 import traceback
 
 from loglens.alerts import AlertDispatcher, alerters_from_env, load_dotenv
-from loglens.api import Anomaly
 from loglens.handler import LogLensHandler
 from loglens.llm import LLMConfig
 from loglens.llm.client import LLMClient
-from loglens.models import LogEntry
+from loglens.models import Anomaly, LogEntry
 from loglens.pipeline.detector import get_severity
 
 logger = logging.getLogger("loglens.monitor")

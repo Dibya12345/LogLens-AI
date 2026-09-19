@@ -7,56 +7,24 @@ from typing import Any
 
 import numpy as np
 
-from loglens.llm import LLMConfig, run_ask, run_rca, save_report
-from loglens.models import LogEntry
-from loglens.output.html_report import render_html_report
+from loglens.llm import save_report
+from loglens.models import Anomaly, LogEntry, _to_anomaly
 from loglens.pipeline.detector import DetectionResult
 from loglens.pipeline.ingestion import stream_command, stream_lines
 from loglens.pipeline.parser import StreamParser
 from loglens.pipeline.run import RunConfig, run
+from loglens.reporting import ask_about_anomalies, html_for_anomalies, rca_for_anomalies
 
-
-@dataclass
-class Anomaly:
-    level: str
-    score: float
-    message: str
-    service: str = "unknown"
-    timestamp: str = ""
-    reasons: list[str] = field(default_factory=list)
-    raw: str = ""
-    index: int | None = None
-    entry: LogEntry | None = field(default=None, repr=False)
-
-    def __str__(self) -> str:
-        why = ("  [" + "; ".join(self.reasons) + "]") if self.reasons else ""
-        svc = f" {self.service}" if self.service not in ("", "unknown") else ""
-        return f"[{self.level}]{svc} (score {self.score:.2f}) {self.message}{why}"
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "level": self.level,
-            "score": round(self.score, 4),
-            "message": self.message,
-            "service": self.service,
-            "timestamp": self.timestamp,
-            "reasons": list(self.reasons),
-            "index": self.index,
-        }
-
-
-def _to_anomaly(e: LogEntry, score: float, reasons, idx) -> Anomaly:
-    return Anomaly(
-        level=e.level,
-        score=float(score),
-        message=e.message,
-        service=e.service,
-        timestamp=e.timestamp,
-        reasons=list(reasons),
-        raw=e.raw,
-        index=idx,
-        entry=e,
-    )
+__all__ = [
+    "Anomaly",
+    "AnalysisResult",
+    "analyze",
+    "analyze_async",
+    "analyze_entries",
+    "rca_for_anomalies",
+    "ask_about_anomalies",
+    "html_for_anomalies",
+]
 
 
 @dataclass
@@ -254,65 +222,4 @@ def analyze(
     raise RuntimeError(
         "analyze() with a URL/stdin/cmd source cannot run inside an active "
         "event loop; use `await analyze_async(...)` instead."
-    )
-
-
-def _llm_config(provider: str = "", model: str = "", api_key: str = "", config=None):
-    return config or LLMConfig.from_env(provider=provider, model=model, api_key=api_key)
-
-
-def rca_for_anomalies(
-    anomalies: list[Anomaly],
-    *,
-    source_name: str = "",
-    provider: str = "",
-    model: str = "",
-    api_key: str = "",
-    config=None,
-):
-    cfg = _llm_config(provider, model, api_key, config)
-    return run_rca(
-        [a.entry for a in anomalies if a.entry is not None],
-        cfg,
-        scores=[a.score for a in anomalies],
-        reasons=["; ".join(a.reasons) for a in anomalies],
-        source_name=source_name,
-    )
-
-
-def ask_about_anomalies(
-    question: str,
-    anomalies: list[Anomaly],
-    *,
-    source_name: str = "",
-    provider: str = "",
-    model: str = "",
-    api_key: str = "",
-    config=None,
-):
-    cfg = _llm_config(provider, model, api_key, config)
-    return run_ask(
-        question,
-        [a.entry for a in anomalies if a.entry is not None],
-        cfg,
-        scores=[a.score for a in anomalies],
-        reasons=["; ".join(a.reasons) for a in anomalies],
-        source_name=source_name,
-    )
-
-
-def html_for_anomalies(
-    anomalies: list[Anomaly], *, total_lines: int, source_name: str = "", rca=None
-) -> str:
-    levels: dict[str, int] = {}
-    for a in anomalies:
-        levels[a.level.upper()] = levels.get(a.level.upper(), 0) + 1
-    return render_html_report(
-        source=source_name or "loglens",
-        total_lines=total_lines,
-        anomalies=[a.entry for a in anomalies if a.entry is not None],
-        level_counts=levels,
-        rca_markdown=getattr(rca, "report", None) if rca is not None else None,
-        rca_meta={"provider": rca.provider, "model": rca.model} if rca is not None else None,
-        scores=[a.score for a in anomalies],
     )

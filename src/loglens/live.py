@@ -4,17 +4,11 @@ import logging
 import time
 from collections import deque
 
-from loglens.api import (
-    Anomaly,
-    _to_anomaly,
-    ask_about_anomalies,
-    html_for_anomalies,
-    rca_for_anomalies,
-)
-from loglens.models import LogEntry
+from loglens.models import Anomaly, LogEntry, _to_anomaly
 from loglens.pipeline.detector import HARD_FLAG_SEVERITY, get_severity
 from loglens.pipeline.parser import StreamParser
 from loglens.pipeline.run import RunConfig, run
+from loglens.reporting import ask_about_anomalies, html_for_anomalies, rca_for_anomalies
 
 logger = logging.getLogger("loglens.live")
 

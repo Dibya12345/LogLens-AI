@@ -8,11 +8,25 @@ import time
 import urllib.request
 from email.mime.text import MIMEText
 from pathlib import Path
+from typing import Protocol, runtime_checkable
 
-from loglens.api import Anomaly
+from loglens.models import Anomaly
 from loglens.severity import CARD_COLOR_DEFAULT, CARD_COLORS, EMOJI, EMOJI_DEFAULT
 
 logger = logging.getLogger("loglens.alerts")
+
+
+@runtime_checkable
+class Alerter(Protocol):
+    name: str
+
+    def send(self, app: str, a: Anomaly, rca_line: str | None = None) -> None: ...
+
+
+def _post_json(url: str, payload: dict, timeout: int) -> None:
+    body = json.dumps(payload).encode()
+    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
+    urllib.request.urlopen(req, timeout=timeout).read()
 
 
 def load_dotenv(path: str = ".env") -> None:
@@ -48,11 +62,7 @@ class SlackAlerter:
         self.timeout = timeout
 
     def send(self, app: str, a: Anomaly, rca_line: str | None = None) -> None:
-        body = json.dumps({"text": _fmt_text(app, a, rca_line)}).encode()
-        req = urllib.request.Request(
-            self.url, data=body, headers={"Content-Type": "application/json"}
-        )
-        urllib.request.urlopen(req, timeout=self.timeout).read()
+        _post_json(self.url, {"text": _fmt_text(app, a, rca_line)}, self.timeout)
 
 
 class TeamsAlerter:
@@ -83,10 +93,7 @@ class TeamsAlerter:
                 }
             ],
         }
-        req = urllib.request.Request(
-            self.url, data=json.dumps(card).encode(), headers={"Content-Type": "application/json"}
-        )
-        urllib.request.urlopen(req, timeout=self.timeout).read()
+        _post_json(self.url, card, self.timeout)
 
 
 class EmailAlerter:
