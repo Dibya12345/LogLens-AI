@@ -83,6 +83,30 @@ def _severity(a) -> int:
     return get_severity(a.level)
 
 
+def _select_engine(deep: bool):
+    if deep:
+        if DeepEmbeddingEngine is None:
+            console.print(
+                "[bold red]Deep mode requires sentence-transformers.[/bold red]\n"
+                "Install with: [yellow]pip install sentence-transformers[/yellow]"
+            )
+            raise typer.Exit(code=1)
+        return DeepEmbeddingEngine()
+    return EmbeddingEngine()
+
+
+def _groups_to_rca_entries(groups) -> list:
+    return [
+        LogEntry(
+            level=g.level,
+            service=g.service,
+            message=f"{g.sample} (occurred ×{g.count:,}, score {g.max_score:.2f})",
+            raw=g.sample,
+        )
+        for g in groups
+    ]
+
+
 def _print_llm_config_hint():
     console.print(
         "[dim]Configure with env vars: LOGLENS_LLM_PROVIDER (openai|azure|groq), "
@@ -348,18 +372,11 @@ def analyze(
             console.print(
                 "[bold cyan][LogLens][/bold cyan] Mode: [bold magenta] Deep (neural embeddings)[/bold magenta]"
             )
-            if DeepEmbeddingEngine is None:
-                console.print(
-                    "[bold red]Deep mode requires sentence-transformers.[/bold red]\n"
-                    "Install with: [yellow]pip install sentence-transformers[/yellow]"
-                )
-                raise typer.Exit(code=1)
-            engine = DeepEmbeddingEngine()
         else:
             console.print(
                 "[bold cyan][LogLens][/bold cyan] Mode: [bold green] Fast (TF-IDF embeddings)[/bold green]"
             )
-            engine = EmbeddingEngine()
+        engine = _select_engine(deep)
 
         console.print(
             f"[bold cyan][LogLens][/bold cyan] Computing embeddings for [bold]{len(entries):,}[/bold] entries..."
@@ -580,15 +597,7 @@ def analyze(
         rca_result = None
         rca_input = []
         if groups:
-            rca_input = [
-                LogEntry(
-                    level=g.level,
-                    service=g.service,
-                    message=f"{g.sample} (occurred ×{g.count:,}, score {g.max_score:.2f})",
-                    raw=g.sample,
-                )
-                for g in groups
-            ]
+            rca_input = _groups_to_rca_entries(groups)
         if rca:
             if rca_input:
                 scores = [g.max_score for g in groups]
@@ -648,18 +657,11 @@ def ask(
             console.print("[bold red]No valid log entries found.[/bold red]")
             raise typer.Exit(code=1)
 
+        engine = _select_engine(deep)
         if deep:
-            if DeepEmbeddingEngine is None:
-                console.print(
-                    "[bold red]Deep mode requires sentence-transformers.[/bold red]\n"
-                    "Install with: [yellow]pip install sentence-transformers[/yellow]"
-                )
-                raise typer.Exit(code=1)
-            engine = DeepEmbeddingEngine()
             registry = TemplateRegistry(entries)
             vectors = engine.embed_templates(entries, registry)
         else:
-            engine = EmbeddingEngine()
             vectors = engine.embed(entries)
 
         console.print(

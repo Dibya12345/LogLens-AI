@@ -268,22 +268,32 @@ def detect_bursts(entries: Sequence[LogEntry], cfg: DetectorConfig) -> tuple[np.
     return burst, ""
 
 
-def detect(
-    entries: Sequence[LogEntry],
-    embeddings: np.ndarray,
-    cfg: DetectorConfig | None = None,
-    baseline: dict | None = None,
-) -> DetectionResult:
-    cfg = cfg or DetectorConfig()
-    n = len(entries)
-    if n == 0:
-        return DetectionResult(
-            entries, np.zeros(0), np.zeros(0, bool), [], np.zeros(0, int), [], [], False, "", {}
-        )
+@dataclass
+class _Signals:
+    n: int
+    registry: TemplateRegistry
+    severities: np.ndarray
+    levels: np.ndarray
+    level_totals: dict[str, int]
+    group_labels: np.ndarray
+    cluster_sizes: dict[int, float]
+    group_outlier: np.ndarray
+    group_outlier_z: np.ndarray
+    group_outlier_dist: np.ndarray
+    group_chronic: np.ndarray
+    group_span: np.ndarray
+    group_history: np.ndarray
+    burst_mask: np.ndarray
+    group_flood: np.ndarray
+    group_recurring: np.ndarray
+    group_global_rare: np.ndarray
+    group_novel: np.ndarray
+    group_surge: np.ndarray
 
-    vectors = normalize(np.asarray(embeddings, dtype=np.float32), norm="l2")
 
-    registry = TemplateRegistry(entries)
+def _cluster_templates(
+    vectors: np.ndarray, registry: TemplateRegistry, cfg: DetectorConfig
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict[int, float], float]:
     n_groups = len(registry)
     group_counts = np.array(registry.counts, dtype=np.float64)
     group_vectors = np.zeros((n_groups, vectors.shape[1]), dtype=np.float32)
@@ -295,20 +305,15 @@ def detect(
     db = DBSCAN(eps=eps, min_samples=cfg.min_samples, metric="euclidean", n_jobs=-1)
     group_labels = db.fit_predict(group_vectors, sample_weight=group_counts)
 
-    # weighted cluster sizes (in ENTRIES, not templates)
     cluster_sizes: dict[int, float] = {}
     for gl, c in zip(group_labels, group_counts, strict=False):
         cluster_sizes[int(gl)] = cluster_sizes.get(int(gl), 0.0) + c
+    return group_vectors, group_counts, group_labels, cluster_sizes, eps
 
-    severities = np.array([get_severity(e.level) for e in entries])
-    levels = np.array([e.level.upper() for e in entries])
-    level_totals: dict[str, int] = {}
-    for lv in levels:
-        level_totals[lv] = level_totals.get(lv, 0) + 1
 
-    group_level = [g.level for g in registry.groups]
-    group_sev = np.array([get_severity(lv) for lv in group_level])
-
+def _level_outliers(
+    group_level: list[str], group_counts: np.ndarray, group_vectors: np.ndarray, n_groups: int
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     group_outlier = np.zeros(n_groups, dtype=bool)
     group_outlier_z = np.zeros(n_groups, dtype=np.float64)
     group_outlier_dist = np.zeros(n_groups, dtype=np.float64)
@@ -333,83 +338,34 @@ def detect(
                 group_outlier[gi] = True
                 group_outlier_z[gi] = (dist[j] - mean) / std if std > 1e-9 else 10.0
                 group_outlier_dist[gi] = float(dist[j])
+    return group_outlier, group_outlier_z, group_outlier_dist
 
-    if cfg.enable_burst:
-        burst_mask, burst_note = detect_bursts(entries, cfg)
-    else:
-        burst_mask, burst_note = np.zeros(n, dtype=bool), "burst detection disabled"
 
-    severe_entries = int((severities <= 3).sum())  # ERROR and worse
-    severe_share = severe_entries / n
-    incident_mode = severe_share >= cfg.incident_share
-    incident_note = ""
-    if incident_mode:
-        incident_note = (
-            f"{severe_share:.0%} of entries are ERROR or worse "
-            f"— corpus looks like an incident window"
-        )
-
-    group_flood = np.zeros(n_groups, dtype=bool)
-    for gi, g in enumerate(registry.groups):
-        if group_sev[gi] <= 4 and g.count / n >= cfg.flood_share:
-            group_flood[gi] = True
-
-    recurring_cut = max(cfg.recurring_min, int(n * cfg.recurring_share))
-    group_recurring = np.zeros(n_groups, dtype=bool)
-    group_span = np.zeros(n_groups, dtype=np.float64)
-    group_history = np.zeros(n_groups, dtype=np.float64)  # head presence
-    head_cut = int(n * HISTORY_HEAD)
-    for gi, g in enumerate(registry.groups):
-        if g.count > 1:
-            group_span[gi] = (g.indices[-1] - g.indices[0]) / max(n - 1, 1)
-        group_history[gi] = sum(1 for i in g.indices if i < head_cut) / g.count
-
-    baseline_templates: dict[str, int] = {}
-    baseline_total = 0
-    if baseline:
-        baseline_templates = baseline.get("templates", {}) or {}
-        baseline_total = int(baseline.get("total", 0) or 0)
-    group_novel = np.zeros(n_groups, dtype=bool)
-    group_surge = np.zeros(n_groups, dtype=bool)
-    if baseline_templates:
-        for gi, g in enumerate(registry.groups):
-            base_count = baseline_templates.get(f"{g.level.upper()}|{g.template}", 0)
-            if base_count == 0:
-                group_novel[gi] = True
-            elif baseline_total > 0:
-                base_rate = base_count / baseline_total
-                now_rate = g.count / n
-                if now_rate > 10 * base_rate and g.count >= cfg.rare_min:
-                    group_surge[gi] = True
-
-    for gi, g in enumerate(registry.groups):
-        if group_sev[gi] > 4 or g.count < recurring_cut:
-            continue  # WARN and worse, only recurring
-        if baseline_templates:
-            base_count = baseline_templates.get(f"{g.level.upper()}|{g.template}", 0)
-            if base_count > 0 and not group_surge[gi]:
-                continue  # known chronic noise: stay quiet
-        group_recurring[gi] = True
-
-    group_chronic = np.zeros(n_groups, dtype=bool)
-    group_global_rare = np.zeros(n_groups, dtype=bool)
-    for gi, g in enumerate(registry.groups):
-        if g.count / n <= GLOBAL_RARE_SHARE:
-            group_global_rare[gi] = True
-        if group_sev[gi] > 4 or group_sev[gi] <= 1:
-            continue
-        if not (g.count / n >= CHRONIC_SHARE or g.count >= CHRONIC_MIN_COUNT):
-            continue
-        span = (g.indices[-1] - g.indices[0]) / max(n - 1, 1)
-        if span < CHRONIC_SPREAD:
-            continue
-        if bool(burst_mask[g.indices].any()):
-            continue
-        group_chronic[gi] = True
+def _score_entries(
+    entries: Sequence[LogEntry], sig: _Signals, cfg: DetectorConfig
+) -> tuple[np.ndarray, list[list[str]]]:
+    n = sig.n
+    registry = sig.registry
+    severities = sig.severities
+    levels = sig.levels
+    level_totals = sig.level_totals
+    group_labels = sig.group_labels
+    cluster_sizes = sig.cluster_sizes
+    group_outlier = sig.group_outlier
+    group_outlier_z = sig.group_outlier_z
+    group_outlier_dist = sig.group_outlier_dist
+    group_chronic = sig.group_chronic
+    group_span = sig.group_span
+    group_history = sig.group_history
+    burst_mask = sig.burst_mask
+    group_flood = sig.group_flood
+    group_recurring = sig.group_recurring
+    group_global_rare = sig.group_global_rare
+    group_novel = sig.group_novel
+    group_surge = sig.group_surge
 
     scores = np.zeros(n, dtype=np.float64)
     reasons: list[list[str]] = [[] for _ in range(n)]
-
     conf = volume_confidence(n, cfg.rarity_confidence_k)
 
     for i, e in enumerate(entries):
@@ -515,18 +471,17 @@ def detect(
 
         scores[i] = soft_cap(score)
         reasons[i] = entry_reasons
+    return scores, reasons
 
-    threshold = cfg.flag_threshold
-    if cfg.auto_threshold:
-        auto = otsu_threshold(scores)
-        if auto is not None:
-            threshold = auto
-    flagged = scores >= threshold
 
-    for i, e in enumerate(entries):
-        e.anomaly_score = float(scores[i])
-        e.anomaly_reasons = reasons[i]
-
+def _build_groups(
+    registry: TemplateRegistry,
+    entries: Sequence[LogEntry],
+    scores: np.ndarray,
+    reasons: list[list[str]],
+    flagged: np.ndarray,
+) -> list[AnomalyGroup]:
+    """Collapse flagged entries into per-template anomaly groups, worst first."""
     groups: list[AnomalyGroup] = []
     for g in registry.groups:
         fidx = [i for i in g.indices if flagged[i]]
@@ -550,7 +505,18 @@ def detect(
             )
         )
     groups.sort(key=lambda a: (-a.score, get_severity(a.level), -a.count))
+    return groups
 
+
+def _build_patterns(
+    registry: TemplateRegistry,
+    entries: Sequence[LogEntry],
+    group_sev: np.ndarray,
+    flagged: np.ndarray,
+    n: int,
+    cfg: DetectorConfig,
+) -> list[PatternInfo]:
+    """Summarize the dominant WARN+ templates (flagged or not) for reporting."""
     patterns: list[PatternInfo] = []
     for gi, g in enumerate(registry.groups):
         if group_sev[gi] <= 4 and g.count >= cfg.pattern_min:
@@ -566,7 +532,152 @@ def detect(
                 )
             )
     patterns.sort(key=lambda p: (get_severity(p.level), -p.count))
-    patterns = patterns[: cfg.max_patterns]
+    return patterns[: cfg.max_patterns]
+
+
+def detect(
+    entries: Sequence[LogEntry],
+    embeddings: np.ndarray,
+    cfg: DetectorConfig | None = None,
+    baseline: dict | None = None,
+) -> DetectionResult:
+    cfg = cfg or DetectorConfig()
+    n = len(entries)
+    if n == 0:
+        return DetectionResult(
+            entries, np.zeros(0), np.zeros(0, bool), [], np.zeros(0, int), [], [], False, "", {}
+        )
+
+    vectors = normalize(np.asarray(embeddings, dtype=np.float32), norm="l2")
+
+    registry = TemplateRegistry(entries)
+    n_groups = len(registry)
+    group_vectors, group_counts, group_labels, cluster_sizes, eps = _cluster_templates(
+        vectors, registry, cfg
+    )
+
+    severities = np.array([get_severity(e.level) for e in entries])
+    levels = np.array([e.level.upper() for e in entries])
+    level_totals: dict[str, int] = {}
+    for lv in levels:
+        level_totals[lv] = level_totals.get(lv, 0) + 1
+
+    group_level = [g.level for g in registry.groups]
+    group_sev = np.array([get_severity(lv) for lv in group_level])
+
+    group_outlier, group_outlier_z, group_outlier_dist = _level_outliers(
+        group_level, group_counts, group_vectors, n_groups
+    )
+
+    if cfg.enable_burst:
+        burst_mask, burst_note = detect_bursts(entries, cfg)
+    else:
+        burst_mask, burst_note = np.zeros(n, dtype=bool), "burst detection disabled"
+
+    severe_entries = int((severities <= 3).sum())  # ERROR and worse
+    severe_share = severe_entries / n
+    incident_mode = severe_share >= cfg.incident_share
+    incident_note = ""
+    if incident_mode:
+        incident_note = (
+            f"{severe_share:.0%} of entries are ERROR or worse "
+            f"— corpus looks like an incident window"
+        )
+
+    group_flood = np.zeros(n_groups, dtype=bool)
+    for gi, g in enumerate(registry.groups):
+        if group_sev[gi] <= 4 and g.count / n >= cfg.flood_share:
+            group_flood[gi] = True
+
+    recurring_cut = max(cfg.recurring_min, int(n * cfg.recurring_share))
+    group_recurring = np.zeros(n_groups, dtype=bool)
+    group_span = np.zeros(n_groups, dtype=np.float64)
+    group_history = np.zeros(n_groups, dtype=np.float64)  # head presence
+    head_cut = int(n * HISTORY_HEAD)
+    for gi, g in enumerate(registry.groups):
+        if g.count > 1:
+            group_span[gi] = (g.indices[-1] - g.indices[0]) / max(n - 1, 1)
+        group_history[gi] = sum(1 for i in g.indices if i < head_cut) / g.count
+
+    baseline_templates: dict[str, int] = {}
+    baseline_total = 0
+    if baseline:
+        baseline_templates = baseline.get("templates", {}) or {}
+        baseline_total = int(baseline.get("total", 0) or 0)
+    group_novel = np.zeros(n_groups, dtype=bool)
+    group_surge = np.zeros(n_groups, dtype=bool)
+    if baseline_templates:
+        for gi, g in enumerate(registry.groups):
+            base_count = baseline_templates.get(f"{g.level.upper()}|{g.template}", 0)
+            if base_count == 0:
+                group_novel[gi] = True
+            elif baseline_total > 0:
+                base_rate = base_count / baseline_total
+                now_rate = g.count / n
+                if now_rate > 10 * base_rate and g.count >= cfg.rare_min:
+                    group_surge[gi] = True
+
+    for gi, g in enumerate(registry.groups):
+        if group_sev[gi] > 4 or g.count < recurring_cut:
+            continue  # WARN and worse, only recurring
+        if baseline_templates:
+            base_count = baseline_templates.get(f"{g.level.upper()}|{g.template}", 0)
+            if base_count > 0 and not group_surge[gi]:
+                continue  # known chronic noise: stay quiet
+        group_recurring[gi] = True
+
+    group_chronic = np.zeros(n_groups, dtype=bool)
+    group_global_rare = np.zeros(n_groups, dtype=bool)
+    for gi, g in enumerate(registry.groups):
+        if g.count / n <= GLOBAL_RARE_SHARE:
+            group_global_rare[gi] = True
+        if group_sev[gi] > 4 or group_sev[gi] <= 1:
+            continue
+        if not (g.count / n >= CHRONIC_SHARE or g.count >= CHRONIC_MIN_COUNT):
+            continue
+        span = (g.indices[-1] - g.indices[0]) / max(n - 1, 1)
+        if span < CHRONIC_SPREAD:
+            continue
+        if bool(burst_mask[g.indices].any()):
+            continue
+        group_chronic[gi] = True
+
+    sig = _Signals(
+        n=n,
+        registry=registry,
+        severities=severities,
+        levels=levels,
+        level_totals=level_totals,
+        group_labels=group_labels,
+        cluster_sizes=cluster_sizes,
+        group_outlier=group_outlier,
+        group_outlier_z=group_outlier_z,
+        group_outlier_dist=group_outlier_dist,
+        group_chronic=group_chronic,
+        group_span=group_span,
+        group_history=group_history,
+        burst_mask=burst_mask,
+        group_flood=group_flood,
+        group_recurring=group_recurring,
+        group_global_rare=group_global_rare,
+        group_novel=group_novel,
+        group_surge=group_surge,
+    )
+    scores, reasons = _score_entries(entries, sig, cfg)
+
+    threshold = cfg.flag_threshold
+    if cfg.auto_threshold:
+        auto = otsu_threshold(scores)
+        if auto is not None:
+            threshold = auto
+    flagged = scores >= threshold
+
+    for i, e in enumerate(entries):
+        e.anomaly_score = float(scores[i])
+        e.anomaly_reasons = reasons[i]
+
+    groups = _build_groups(registry, entries, scores, reasons, flagged)
+    patterns = _build_patterns(registry, entries, group_sev, flagged, n, cfg)
 
     entry_labels = np.array([group_labels[registry.entry_group[i]] for i in range(n)])
 

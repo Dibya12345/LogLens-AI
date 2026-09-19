@@ -97,6 +97,47 @@ class AnalysisResult:
     def __iter__(self):
         return iter(self.anomalies)
 
+    # --- AI / reporting -----------------------------------------------------
+    def rca(self, *, provider: str = "", model: str = "", api_key: str = "", config=None):
+        """LLM root-cause analysis of this result's anomalies."""
+        return rca_for_anomalies(
+            self.anomalies,
+            source_name=self.format or "analysis",
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            config=config,
+        )
+
+    def ask(
+        self, question: str, *, provider: str = "", model: str = "", api_key: str = "", config=None
+    ):
+        """Ask a free-form question about this result's anomalies."""
+        return ask_about_anomalies(
+            question,
+            self.anomalies,
+            source_name=self.format or "analysis",
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            config=config,
+        )
+
+    def save_html(self, path: str, *, rca=None, source_name: str = "") -> str:
+        """Write a standalone HTML report to ``path`` and return the path."""
+        html = html_for_anomalies(
+            self.anomalies, total_lines=self.total, source_name=source_name or "analysis", rca=rca
+        )
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(html)
+        return path
+
+    def save_rca(self, path: str, *, rca=None, **kw) -> str:
+        """Write an RCA markdown report to ``path`` and return the path."""
+        rca = rca or self.rca(**kw)
+        save_report(rca, path, source_name="analysis")
+        return path
+
 
 def _wrap(entries: list[LogEntry], det: DetectionResult, fmt: str | None) -> AnalysisResult:
     order = np.argsort(-det.scores, kind="stable")
@@ -275,51 +316,3 @@ def html_for_anomalies(
         rca_meta={"provider": rca.provider, "model": rca.model} if rca is not None else None,
         scores=[a.score for a in anomalies],
     )
-
-
-def _install_result_ai_methods():
-
-    def rca(self, *, provider: str = "", model: str = "", api_key: str = "", config=None):
-        return rca_for_anomalies(
-            self.anomalies,
-            source_name=self.format or "analysis",
-            provider=provider,
-            model=model,
-            api_key=api_key,
-            config=config,
-        )
-
-    def ask(
-        self, question: str, *, provider: str = "", model: str = "", api_key: str = "", config=None
-    ):
-        return ask_about_anomalies(
-            question,
-            self.anomalies,
-            source_name=self.format or "analysis",
-            provider=provider,
-            model=model,
-            api_key=api_key,
-            config=config,
-        )
-
-    def save_html(self, path: str, *, rca=None, source_name: str = "") -> str:
-        html = html_for_anomalies(
-            self.anomalies, total_lines=self.total, source_name=source_name or "analysis", rca=rca
-        )
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(html)
-        return path
-
-    def save_rca(self, path: str, *, rca=None, **kw) -> str:
-
-        rca = rca or self.rca(**kw)
-        save_report(rca, path, source_name="analysis")
-        return path
-
-    AnalysisResult.rca = rca
-    AnalysisResult.ask = ask
-    AnalysisResult.save_html = save_html
-    AnalysisResult.save_rca = save_rca
-
-
-_install_result_ai_methods()
