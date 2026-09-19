@@ -2,7 +2,7 @@ import asyncio
 import logging
 import subprocess, sys, os
 import pytest
-
+from loglens.llm import LLMResponse, TokenUsage
 from loglens import (LiveDetector, LogLensHandler, RunConfig, analyze,
                      analyze_async)
 from loglens.pipeline.ingestion import AsyncCommandReader, CommandError
@@ -184,11 +184,12 @@ def test_command_reader_missing_binary():
 class _FakeLLMClient:
     def __init__(self, config):
         self.config = config
-        from loglens.llm.providers import TokenUsage
-        self.last_usage = TokenUsage()
 
     def chat(self, messages):
-        return "## Root cause\nThe database ran out of connections."
+        return LLMResponse(
+            content="## Root cause\nThe database ran out of connections.",
+            usage=TokenUsage(),
+        )
 
 
 @pytest.fixture
@@ -239,10 +240,10 @@ def test_watch_cli_html_report(fake_llm, tmp_path):
         [sys.executable, "-c",
          # patch the LLM inside the subprocess, then invoke the CLI
          "import loglens.llm.rca as m;\n"
-         "from loglens.llm.providers import TokenUsage\n"
+         "from loglens.llm import TokenUsage, LLMResponse\n"
          "class F:\n"
-         "  def __init__(s,c): s.last_usage=TokenUsage()\n"
-         "  def chat(s,msgs): return 'Root cause: db pool exhausted.'\n"
+         "  def __init__(s,c): pass\n"
+         "  def chat(s,msgs): return LLMResponse(content='Root cause: db pool exhausted.', usage=TokenUsage())\n"
          "m.LLMClient=F\n"
          "import sys; from loglens.cli import app\n"
          f"sys.argv=['loglens','watch',"

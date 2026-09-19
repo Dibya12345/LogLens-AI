@@ -2,11 +2,13 @@
 import io
 import json
 import os
+import urllib.error
 from unittest import mock
 
 import pytest
 
-from loglens.llm.providers import LLMConfig, LLMClient, LLMError, TokenUsage
+from loglens.llm import LLMConfig, AzureOptions, LLMClient, LLMError, TokenUsage, LLMResponse
+from loglens.llm.providers import get_provider
 from loglens.llm.rca import run_rca, run_ask, build_rca_context, save_report, RCAResult
 from loglens.output.html_report import render_html_report
 from loglens.models import LogEntry
@@ -28,7 +30,9 @@ def _fake_response(content="## Incident Summary\nAll good.", usage=None):
 def _cfg(provider="openai", **kw):
     defaults = dict(provider=provider, api_key="test-key", model="test-model")
     if provider == "azure":
-        defaults.update(azure_endpoint="https://res.openai.azure.com", azure_deployment="chat")
+        defaults["azure"] = AzureOptions(
+            endpoint="https://res.openai.azure.com", deployment="chat"
+        )
     defaults.update(kw)
     return LLMConfig(**defaults)
 
@@ -73,31 +77,42 @@ class TestLLMConfig:
         monkeypatch.setenv("LOGLENS_AZURE_DEPLOYMENT", "chat")
         monkeypatch.delenv("LOGLENS_LLM_MODEL", raising=False)
         cfg = LLMConfig.from_env(provider="azure", api_key="k")
-        assert cfg.azure_deployment == "chat"
+        assert cfg.azure.deployment == "chat"
         assert cfg.model == "chat"
 
 
-class TestLLMClient:
+class TestProviders:
     def test_endpoints(self):
-        assert "api.openai.com" in LLMClient(_cfg("openai"))._endpoint()
-        assert "api.groq.com" in LLMClient(_cfg("groq"))._endpoint()
-        az = LLMClient(_cfg("azure"))._endpoint()
+        assert "api.openai.com" in get_provider(_cfg("openai")).endpoint()
+        assert "api.groq.com" in get_provider(_cfg("groq")).endpoint()
+        az = get_provider(_cfg("azure")).endpoint()
         assert "res.openai.azure.com" in az and "/deployments/chat/" in az
 
     def test_headers(self):
-        assert LLMClient(_cfg("openai"))._headers()["Authorization"] == "Bearer test-key"
-        assert LLMClient(_cfg("azure"))._headers()["api-key"] == "test-key"
+        assert get_provider(_cfg("openai")).headers()["Authorization"] == "Bearer test-key"
+        assert get_provider(_cfg("azure")).headers()["api-key"] == "test-key"
 
+    def test_openai_payload_has_model(self):
+        p = get_provider(_cfg("openai")).payload([{"role": "user", "content": "hi"}])
+        assert p["model"] == "test-model"
+
+    def test_azure_payload_has_no_model(self):
+        p = get_provider(_cfg("azure")).payload([{"role": "user", "content": "hi"}])
+        assert "model" not in p
+
+
+class TestLLMClient:
     @mock.patch("urllib.request.urlopen")
     def test_chat_returns_content_and_usage(self, m_open):
         m_open.return_value = _fake_response("hello world")
-        client = LLMClient(_cfg())
-        out = client.chat([{"role": "user", "content": "hi"}])
-        assert out == "hello world"
-        assert client.last_usage.total_tokens == 150
+        resp = LLMClient(_cfg()).chat([{"role": "user", "content": "hi"}])
+        assert isinstance(resp, LLMResponse)
+        assert resp.content == "hello world"
+        assert resp.usage.total_tokens == 150
+        assert resp.provider == "openai"
 
     @mock.patch("urllib.request.urlopen")
-    def test_azure_payload_has_no_model(self, m_open):
+    def test_azure_payload_has_no_model_over_wire(self, m_open):
         m_open.return_value = _fake_response()
         LLMClient(_cfg("azure")).chat([{"role": "user", "content": "hi"}])
         sent = json.loads(m_open.call_args[0][0].data)
@@ -107,11 +122,38 @@ class TestLLMClient:
     def test_network_error_retries_then_fails(self, m_open):
         m_open.side_effect = OSError("boom")
         client = LLMClient(_cfg(retries=1))
-        client.config.retries = 1
         with mock.patch("time.sleep"):
             with pytest.raises(LLMError, match="failed after retries"):
                 client.chat([{"role": "user", "content": "hi"}])
-        assert m_open.call_count == 2 
+        assert m_open.call_count == 2
+
+    @mock.patch("urllib.request.urlopen")
+    def test_retries_transient_5xx_then_succeeds(self, m_open):
+        err = urllib.error.HTTPError("u", 503, "Service Unavailable", {}, io.BytesIO(b"down"))
+        m_open.side_effect = [err, _fake_response("recovered")]
+        client = LLMClient(_cfg(retries=2))
+        with mock.patch("time.sleep"):
+            resp = client.chat([{"role": "user", "content": "hi"}])
+        assert resp.content == "recovered"
+        assert m_open.call_count == 2
+
+    @mock.patch("urllib.request.urlopen")
+    def test_does_not_retry_client_errors(self, m_open):
+        err = urllib.error.HTTPError("u", 400, "Bad Request", {}, io.BytesIO(b"nope"))
+        m_open.side_effect = err
+        client = LLMClient(_cfg(retries=3))
+        with mock.patch("time.sleep"):
+            with pytest.raises(LLMError, match="HTTP 400"):
+                client.chat([{"role": "user", "content": "hi"}])
+        assert m_open.call_count == 1  # 400 is not retried
+
+    @mock.patch("urllib.request.urlopen")
+    def test_401_gives_friendly_message(self, m_open):
+        err = urllib.error.HTTPError("u", 401, "Unauthorized", {}, io.BytesIO(b"bad key"))
+        m_open.side_effect = err
+        with pytest.raises(LLMError, match="Invalid API key"):
+            LLMClient(_cfg()).chat([{"role": "user", "content": "hi"}])
+        assert m_open.call_count == 1  # 401 is not retried
 
 
 

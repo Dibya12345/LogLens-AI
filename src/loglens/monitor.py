@@ -12,7 +12,7 @@ from loglens.api import Anomaly
 from loglens.handler import LogLensHandler
 from loglens.models import LogEntry
 from loglens.llm import LLMConfig
-from loglens.llm.providers import LLMClient
+from loglens.llm.client import LLMClient
 from loglens.pipeline.detector import get_severity
 from loglens.pipeline.detector import get_severity
 
@@ -47,7 +47,7 @@ def ai_rca_line(a: Anomaly, timeout: int = 20) -> Optional[str]:
         cfg.max_tokens = 60
         cfg.timeout = timeout
         client = LLMClient(cfg)
-        text = client.chat([
+        resp = client.chat([
             {"role": "system",
              "content": "You are an SRE. Reply with ONE short sentence (max "
                         "20 words) stating the most likely root cause. No "
@@ -56,7 +56,7 @@ def ai_rca_line(a: Anomaly, timeout: int = 20) -> Optional[str]:
              "content": f"level={a.level} service={a.service} "
                         f"message={a.message} signals={'; '.join(a.reasons)}"},
         ])
-        line = " ".join(text.strip().splitlines())[:200]
+        line = " ".join(resp.content.strip().splitlines())[:200]
         return line or None
     except Exception:
         return None
