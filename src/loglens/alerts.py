@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import ipaddress
 import json
 import logging
 import os
 import smtplib
+import threading
 import time
 import urllib.request
 from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Protocol, runtime_checkable
+from urllib.parse import urlparse
 
 from loglens.models import Anomaly
 from loglens.severity import CARD_COLOR_DEFAULT, CARD_COLORS, EMOJI, EMOJI_DEFAULT
@@ -27,6 +30,39 @@ def _post_json(url: str, payload: dict, timeout: int) -> None:
     body = json.dumps(payload).encode()
     req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
     urllib.request.urlopen(req, timeout=timeout).read()
+
+
+# Hosts that are never legitimate webhook targets — classic SSRF pivots.
+_BLOCKED_HOSTS = {"169.254.169.254", "metadata.google.internal", "metadata"}
+
+
+def validate_webhook_url(url: str) -> str:
+    """Validate a webhook URL and return it, guarding against SSRF.
+
+    Rejects non-http(s) schemes and cloud metadata / link-local endpoints
+    outright. Private/loopback hosts are allowed (self-hosted Slack/Mattermost
+    are common) but logged, so a misconfiguration is at least visible.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(f"Webhook URL must use http(s), got '{parsed.scheme or 'no scheme'}'")
+    host = (parsed.hostname or "").lower()
+    if not host:
+        raise ValueError("Webhook URL has no host")
+    if host in _BLOCKED_HOSTS:
+        raise ValueError(f"Refusing to post alerts to metadata endpoint '{host}'")
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        ip = None
+    if ip is not None:
+        if ip.is_link_local:
+            raise ValueError(f"Refusing to post alerts to link-local address '{host}'")
+        if ip.is_private or ip.is_loopback:
+            logger.warning(
+                "webhook host %s is private/loopback; allowed but verify it is intended", host
+            )
+    return url
 
 
 def load_dotenv(path: str = ".env") -> None:
@@ -58,7 +94,7 @@ class SlackAlerter:
     name = "slack"
 
     def __init__(self, webhook_url: str, timeout: int = 10):
-        self.url = webhook_url
+        self.url = validate_webhook_url(webhook_url)
         self.timeout = timeout
 
     def send(self, app: str, a: Anomaly, rca_line: str | None = None) -> None:
@@ -69,7 +105,7 @@ class TeamsAlerter:
     name = "teams"
 
     def __init__(self, webhook_url: str, timeout: int = 10):
-        self.url = webhook_url
+        self.url = validate_webhook_url(webhook_url)
         self.timeout = timeout
 
     def send(self, app: str, a: Anomaly, rca_line: str | None = None) -> None:
@@ -116,6 +152,11 @@ class EmailAlerter:
         self.sender = sender or user
         self.use_tls = use_tls
         self.timeout = timeout
+        if not use_tls and password:
+            logger.warning(
+                "EmailAlerter configured without TLS (use_tls=False); SMTP "
+                "credentials will be sent in cleartext."
+            )
 
     def send(self, app: str, a: Anomaly, rca_line: str | None = None) -> None:
         msg = MIMEText(_fmt_text(app, a, rca_line))
@@ -168,6 +209,9 @@ class AlertDispatcher:
         self.sent = 0
         self.suppressed = 0
         self.errors = 0
+        # Guards the rate-limit state + counters; dispatch() is called from the
+        # monitor's worker thread and (on crash) the main-thread excepthook.
+        self._lock = threading.Lock()
 
     @staticmethod
     def _key(a: Anomaly) -> str:
@@ -189,9 +233,14 @@ class AlertDispatcher:
         return True
 
     def dispatch(self, a: Anomaly, rca_line: str | None = None) -> bool:
-        if not self.alerters or not self._allowed(a):
-            self.suppressed += 1
+        with self._lock:
+            allowed = bool(self.alerters) and self._allowed(a)
+            if not allowed:
+                self.suppressed += 1
+        if not allowed:
             return False
+        # Network I/O happens outside the lock so a slow webhook can't block
+        # the rate-limit bookkeeping.
         ok = False
         for al in self.alerters:
             try:
@@ -199,7 +248,8 @@ class AlertDispatcher:
                 ok = True
             except Exception as exc:
                 # One alerter failing must not stop the others; count and log.
-                self.errors += 1
+                with self._lock:
+                    self.errors += 1
                 logger.warning(
                     "alerter %s failed: %s: %s",
                     type(al).__name__,
@@ -207,7 +257,8 @@ class AlertDispatcher:
                     exc,
                 )
         if ok:
-            self.sent += 1
+            with self._lock:
+                self.sent += 1
         return ok
 
     def stats(self) -> dict[str, int]:

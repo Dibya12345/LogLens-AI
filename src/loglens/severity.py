@@ -26,6 +26,22 @@ def get_severity(level: str) -> int:
     return SEVERITY_RANK.get(level.upper(), DEFAULT_SEVERITY)
 
 
+# Severity weight used by the turbo fast-scan path (a count-based approximation
+# that skips embeddings). Kept here so there is one place for level tables, but
+# intentionally distinct from SEVERITY_BASE: turbo trades accuracy for speed.
+TURBO_SEVERITY_WEIGHT: dict[str, float] = {
+    "EMERGENCY": 1.0,
+    "ALERT": 0.95,
+    "CRITICAL": 0.9,
+    "ERROR": 0.8,
+    "WARN": 0.5,
+    "NOTICE": 0.2,
+    "INFO": 0.05,
+    "DEBUG": 0.0,
+    "TRACE": 0.0,
+}
+TURBO_SEVERITY_DEFAULT = 0.1
+
 # Base anomaly-score contribution by severity rank (detection tuning).
 SEVERITY_BASE: dict[int, float] = {
     0: 1.0,

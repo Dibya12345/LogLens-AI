@@ -7,6 +7,7 @@ from loglens.llm.client import LLMClient
 from loglens.llm.config import LLMConfig
 from loglens.llm.transport import TokenUsage
 from loglens.models import LogEntry
+from loglens.redact import redact
 
 MAX_ANOMALY_LINES = 40
 MAX_CONTEXT_LINES = 20
@@ -43,7 +44,8 @@ class RCAResult:
 
 
 def _clip(s: str) -> str:
-    s = s.strip()
+    # Redact secrets/PII before anything is sent to the LLM, then truncate.
+    s = redact(s.strip())
     return s if len(s) <= MAX_LINE_CHARS else s[:MAX_LINE_CHARS] + "…"
 
 
@@ -143,7 +145,7 @@ def save_report(result: RCAResult, path: str, source_name: str = "") -> None:
     header = (
         f"# LogLens AI — Root-Cause Analysis\n\n"
         f"- **Source:** {source_name or 'n/a'}\n"
-        f"- **Generated:** {datetime.datetime.now().isoformat(timespec='seconds')}\n"
+        f"- **Generated:** {datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds')}\n"
         f"- **Provider:** {result.provider} ({result.model})\n"
         f"- **Anomaly summaries analyzed:** {result.anomalies_sent}\n"
         f"- **Tokens used:** {result.usage.total_tokens}\n\n---\n\n"

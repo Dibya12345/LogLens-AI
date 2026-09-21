@@ -3,7 +3,7 @@ from __future__ import annotations
 import html as _html
 from collections import Counter
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import datetime, timezone
 
 from loglens.models import LogEntry
 from loglens.severity import WEB_COLORS as LEVEL_COLORS  # noqa: F401  (re-export)
@@ -175,7 +175,7 @@ def render_html_report(
 </head>
 <body>
   <h1>🔍 LogLens AI Report</h1>
-  <p class="dim">Source: {_esc(source)} &nbsp;•&nbsp; Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
+  <p class="dim">Source: {_esc(source)} &nbsp;•&nbsp; Generated: {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")}</p>
 
   <div class="card">
     <div class="stats">

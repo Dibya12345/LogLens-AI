@@ -13,6 +13,7 @@ from loglens.llm import LLMConfig
 from loglens.llm.client import LLMClient
 from loglens.models import Anomaly, LogEntry
 from loglens.pipeline.detector import get_severity
+from loglens.redact import redact
 
 logger = logging.getLogger("loglens.monitor")
 
@@ -58,7 +59,7 @@ def ai_rca_line(a: Anomaly, timeout: int = 20) -> str | None:
                 {
                     "role": "user",
                     "content": f"level={a.level} service={a.service} "
-                    f"message={a.message} signals={'; '.join(a.reasons)}",
+                    f"message={redact(a.message)} signals={'; '.join(a.reasons)}",
                 },
             ]
         )
@@ -90,10 +91,15 @@ class Monitor:
         self._worker.start()
         self.handler = LogLensHandler(on_anomaly=self._enqueue, **detector_kwargs)
         logging.getLogger().addHandler(self.handler)
+        self._stopped = False
         self._old_excepthook = None
+        self._old_thread_excepthook = None
         if capture_crashes:
             self._old_excepthook = sys.excepthook
             sys.excepthook = self._excepthook
+            # Also capture crashes on non-main threads (sys.excepthook misses those).
+            self._old_thread_excepthook = threading.excepthook
+            threading.excepthook = self._thread_excepthook
         atexit.register(self.stop)
 
     def _enqueue(self, a: Anomaly) -> None:
@@ -121,6 +127,34 @@ class Monitor:
         if self._old_excepthook:
             self._old_excepthook(exc_type, exc, tb)
 
+    def _thread_excepthook(self, args) -> None:
+        # Uncaught exception on a worker thread. Skip our own drain thread
+        # (it handles its own errors) to avoid recursion.
+        if args.exc_type is SystemExit or args.thread is getattr(self, "_worker", None):
+            if self._old_thread_excepthook:
+                self._old_thread_excepthook(args)
+            return
+        where = args.thread.name if args.thread else "unknown-thread"
+        a = Anomaly(
+            level="ERROR",
+            score=0.9,
+            message=f"uncaught {args.exc_type.__name__} in thread {where}: {args.exc_value}",
+            service=self.app_name,
+            reasons=["uncaught exception in worker thread"],
+            entry=LogEntry(
+                level="ERROR",
+                service=self.app_name,
+                message=str(args.exc_value),
+                raw=str(args.exc_value),
+            ),
+        )
+        try:
+            self.dispatcher.dispatch(a, self._rca_line(a))
+        except Exception as exc:
+            logger.debug("thread-excepthook dispatch failed: %s", exc)
+        if self._old_thread_excepthook:
+            self._old_thread_excepthook(args)
+
     def _rca_line(self, a: Anomaly) -> str:
         if self.use_ai:
             line = ai_rca_line(a)
@@ -145,6 +179,9 @@ class Monitor:
         return s
 
     def stop(self) -> None:
+        if self._stopped:
+            return
+        self._stopped = True
         try:
             logging.getLogger().removeHandler(self.handler)
         except Exception as exc:
@@ -152,11 +189,16 @@ class Monitor:
         if self._old_excepthook is not None:
             sys.excepthook = self._old_excepthook
             self._old_excepthook = None
+        if self._old_thread_excepthook is not None:
+            threading.excepthook = self._old_thread_excepthook
+            self._old_thread_excepthook = None
         try:
             self._q.put_nowait(None)
         except queue.Full:
             # Drain thread will still exit on its own timeout/shutdown.
             logger.debug("stop() could not enqueue sentinel; queue full")
+        # Let the drain thread finish in-flight work instead of being killed.
+        self._worker.join(timeout=2.0)
 
 
 def _sev(level: str) -> int:

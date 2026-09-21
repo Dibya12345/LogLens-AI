@@ -6,6 +6,7 @@ import os
 from dataclasses import dataclass
 
 from loglens.pipeline.templates import template_key
+from loglens.severity import TURBO_SEVERITY_DEFAULT, TURBO_SEVERITY_WEIGHT
 
 logger = logging.getLogger("loglens.turbo")
 
@@ -82,19 +83,6 @@ def _process_range(args) -> dict[tuple[str, str], list]:
     return local
 
 
-_SEVERITY_WEIGHT = {
-    "EMERGENCY": 1.0,
-    "ALERT": 0.95,
-    "CRITICAL": 0.9,
-    "ERROR": 0.8,
-    "WARN": 0.5,
-    "NOTICE": 0.2,
-    "INFO": 0.05,
-    "DEBUG": 0.0,
-    "TRACE": 0.0,
-}
-
-
 @dataclass
 class Template:
     level: str
@@ -132,7 +120,7 @@ def score_templates(merged: dict[tuple[str, str], list], total: int) -> list[Tem
     out: list[Template] = []
     for (_level, tmpl), (count, sample, lvl, svc) in merged.items():
         rarity = math.log1p(total / count) / math.log1p(total)  # 0..1
-        sev = _SEVERITY_WEIGHT.get(lvl, 0.1)
+        sev = TURBO_SEVERITY_WEIGHT.get(lvl, TURBO_SEVERITY_DEFAULT)
         if low_redundancy:
             score = 0.75 * sev + 0.25 * rarity
         else:

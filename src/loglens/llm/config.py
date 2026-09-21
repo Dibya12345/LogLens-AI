@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from loglens.llm.transport import LLMError
 
@@ -24,7 +24,8 @@ class AzureOptions:
 @dataclass
 class LLMConfig:
     provider: str = ""
-    api_key: str = ""
+    # repr=False so the secret never lands in logs, tracebacks, or repr(cfg).
+    api_key: str = field(default="", repr=False)
     model: str = ""
     azure: AzureOptions | None = None
     # request behaviour
