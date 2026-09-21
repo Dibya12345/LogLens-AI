@@ -69,7 +69,7 @@ dev = [
 ]
 
 [project.scripts]
-loglens = "loglens.cli:app"
+loglens = "loglens.interface.cli:app"
 
 [tool.hatch.version]
 path = "src/loglens/_version.py"
@@ -95,7 +95,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["B", "E402"]
-"src/loglens/cli.py" = ["F821"]
+"src/loglens/interface/cli.py" = ["F821"]
 
 [tool.mypy]
 python_version = "3.10"

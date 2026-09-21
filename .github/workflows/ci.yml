@@ -96,7 +96,7 @@ jobs:
           PY
 
       - name: Import smoke test
-        run: python -c "import loglens; from loglens.cli import app; print('import OK')"
+        run: python -c "import loglens; from loglens.interface.cli import app; print('import OK')"
 
       # Quality gates are now enforced (blocking). A violation fails the build.
       - name: Lint (ruff)

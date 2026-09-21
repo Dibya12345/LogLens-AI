@@ -2,9 +2,9 @@
 
 import pytest
 
-from loglens.alerts import SlackAlerter, validate_webhook_url
-from loglens.llm.config import LLMConfig
-from loglens.redact import redact
+from loglens.domain.redact import redact
+from loglens.infrastructure.alerts import SlackAlerter, validate_webhook_url
+from loglens.infrastructure.llm.config import LLMConfig
 
 
 class TestRedaction:

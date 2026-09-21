@@ -93,7 +93,7 @@ def main():
     import time
 
     proc = subprocess.Popen(
-        [sys.executable, "-m", "loglens.cli", "watch", fake_stream, "--quiet"],
+        [sys.executable, "-m", "loglens.interface.cli", "watch", fake_stream, "--quiet"],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
         errors="replace")
 

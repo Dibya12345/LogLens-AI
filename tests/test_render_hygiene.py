@@ -7,10 +7,10 @@ These tests make that class of defect impossible to reintroduce unnoticed.
 
 import pathlib
 
-from loglens.models import LogEntry
-from loglens.output.html_report import render_html_report
-from loglens.pipeline.grouping import template_of
-from loglens.pipeline.turbo import mask_template
+from loglens.detection.grouping import template_of
+from loglens.detection.turbo import mask_template
+from loglens.domain.models import LogEntry
+from loglens.infrastructure.output.html_report import render_html_report
 
 _INVISIBLE = ["​", "‌", "‍", "﻿"]
 

@@ -3,9 +3,9 @@ import sys
 import time
 
 import loglens
-from loglens.alerts import AlertDispatcher, alerters_from_env
-from loglens.api import Anomaly
-from loglens.monitor import heuristic_rca_line
+from loglens.application.api import Anomaly
+from loglens.application.monitor import heuristic_rca_line
+from loglens.infrastructure.alerts import AlertDispatcher, alerters_from_env
 
 
 class FakeChannel:

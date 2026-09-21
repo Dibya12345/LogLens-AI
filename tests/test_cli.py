@@ -3,7 +3,7 @@ import re
 from typer.testing import CliRunner
 
 from loglens import __version__
-from loglens.cli import app
+from loglens.interface.cli import app
 
 runner = CliRunner()
 

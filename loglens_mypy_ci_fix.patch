@@ -1,0 +1,50 @@
+diff --git a/pyproject.toml b/pyproject.toml
+index cad11cd..5f6a708 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -106,6 +106,15 @@ no_implicit_optional = true
+ ignore_missing_imports = true
+ disable_error_code = ["import-untyped"]
+ 
++# numpy 2.x ships PEP 695 (`type X = ...`) stubs that mypy cannot parse when
++# targeting Python < 3.12 (this fails under a 3.12 CI runner). We don't rely on
++# deep numpy typing, so skip its stubs and treat numpy as untyped — keeps mypy
++# green on every supported Python version.
++[[tool.mypy.overrides]]
++module = ["numpy", "numpy.*"]
++follow_imports = "skip"
++follow_imports_for_stubs = true
++
+ [tool.coverage.run]
+ source = ["loglens"]
+ omit = ["*/tests/*"]
+diff --git a/src/loglens/output/terminal.py b/src/loglens/output/terminal.py
+index a3fa95c..b659e0c 100644
+--- a/src/loglens/output/terminal.py
++++ b/src/loglens/output/terminal.py
+@@ -4,6 +4,7 @@ from rich.progress import (
+     BarColumn,
+     Progress,
+     SpinnerColumn,
++    TaskID,
+     TextColumn,
+     TimeElapsedColumn,
+ )
+@@ -21,7 +22,7 @@ class LiveProgress:
+             TimeElapsedColumn(),
+             TextColumn("[yellow]{task.fields[speed]}[/yellow]"),
+         )
+-        self.task_id = None
++        self.task_id: TaskID | None = None
+ 
+     def start(self):
+         self.start_time = time.time()
+@@ -29,6 +30,8 @@ class LiveProgress:
+         self.task_id = self.progress.add_task("Processing...", total=self.total, speed="0 lines/s")
+ 
+     def update(self, count: int):
++        if self.task_id is None:
++            return  # update() before start() is a no-op
+         elapsed = time.time() - self.start_time
+         speed = f"{count / elapsed:,.0f} lines/s" if elapsed > 0 else "0 lines/s"
+         self.progress.update(self.task_id, completed=count, speed=speed)

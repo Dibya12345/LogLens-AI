@@ -1,6 +1,6 @@
 import pytest
 
-from loglens.pipeline.filetype import (
+from loglens.detection.filetype import (
     InvalidSourceError,
     _looks_binary,
     check_source,

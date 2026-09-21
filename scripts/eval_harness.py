@@ -10,8 +10,8 @@ from typing import List, Tuple
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import numpy as np                                          
-from loglens.models import LogEntry                          
-from loglens.pipeline.run import run, RunConfig               
+from loglens.domain.models import LogEntry                          
+from loglens.detection.run import run, RunConfig               
 
 
 def _load_jsonl(path: str) -> Tuple[List[LogEntry], np.ndarray]:
@@ -34,7 +34,7 @@ def _load_jsonl(path: str) -> Tuple[List[LogEntry], np.ndarray]:
 
 
 def _load_log_with_sidecar(path: str) -> Tuple[List[LogEntry], np.ndarray]:
-    from loglens.pipeline.parser import detect_format, parse_line
+    from loglens.detection.parser import detect_format, parse_line
     lines = [l.rstrip("\n") for l in open(path, encoding="utf-8") if l.strip()]
     fmt = detect_format(lines[0]) if lines else "generic"
     entries = [e for e in (parse_line(l, fmt) for l in lines) if e is not None]
@@ -108,7 +108,7 @@ def main():
     print(f"mean F1: {np.mean(f1s):.3f}")
 
     if args.html and first is not None:
-        from loglens.output.report import write_report
+        from loglens.infrastructure.output.report import write_report
         write_report(first, args.html, title=f"LogLens — {args.tasks[0]}")
         print(f"HTML report -> {args.html}")
 

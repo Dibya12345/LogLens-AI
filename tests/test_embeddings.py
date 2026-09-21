@@ -1,14 +1,14 @@
 import numpy as np
 import pytest
 
-from loglens.models import LogEntry
-from loglens.pipeline.embeddings import EmbeddingEngine, extract_features
-from loglens.pipeline.synonyms import (
+from loglens.detection.embeddings import EmbeddingEngine, extract_features
+from loglens.detection.synonyms import (
     SynonymLearner,
     detect_unknown_word,
     normalize_message,
     split_camel_case,
 )
+from loglens.domain.models import LogEntry
 
 # --- helpers ---
 
@@ -250,7 +250,7 @@ skip_if_no_st = pytest.mark.skipif(
 @skip_if_no_st
 def test_deep_embed_returns_correct_shape():
     """Deep mode should return (n, 430) = 384 semantic + 32 tfidf + 14 log features."""
-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
+    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
 
     engine = DeepEmbeddingEngine()
     entries = [
@@ -266,7 +266,7 @@ def test_deep_embed_returns_correct_shape():
 @skip_if_no_st
 def test_deep_similar_messages_are_close():
     """Semantically similar messages should have high cosine similarity."""
-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
+    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
 
     engine = DeepEmbeddingEngine()
     entries = [
@@ -288,7 +288,7 @@ def test_deep_beats_tfidf_on_unseen_synonyms():
     Deep mode should handle unseen synonyms better than TF-IDF.
     'latency spike' vs 'slow response' — TF-IDF fails, deep succeeds.
     """
-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
+    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
 
     engine = DeepEmbeddingEngine()
     entries = [
@@ -307,7 +307,7 @@ def test_deep_beats_tfidf_on_unseen_synonyms():
 @skip_if_no_st
 def test_deep_severity_separation():
     """ERROR should be far from DEBUG even in deep mode."""
-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
+    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
 
     engine = DeepEmbeddingEngine()
     entries = [
@@ -326,7 +326,7 @@ def test_deep_severity_separation():
 @skip_if_no_st
 def test_deep_unit_vectors():
     """All deep embeddings should be unit vectors (normalized)."""
-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
+    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
 
     engine = DeepEmbeddingEngine()
     entries = [

@@ -2,8 +2,7 @@ import json
 
 import numpy as np
 
-from loglens.models import LogEntry
-from loglens.pipeline.benchmark import (
+from loglens.detection.benchmark import (
     build_feature_matrix,
     evaluate,
     grid_search,
@@ -12,6 +11,7 @@ from loglens.pipeline.benchmark import (
     score_prf1,
     train_supervised,
 )
+from loglens.domain.models import LogEntry
 
 
 def _synthetic_corpus(n_normal: int = 60, n_anom: int = 20):

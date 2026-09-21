@@ -1,7 +1,6 @@
 import numpy as np
 
-from loglens.models import LogEntry
-from loglens.pipeline.detector import (
+from loglens.detection.detector import (
     DetectorConfig,
     cluster_summary,
     detect,
@@ -9,6 +8,7 @@ from loglens.pipeline.detector import (
     get_severity,
     otsu_threshold,
 )
+from loglens.domain.models import LogEntry
 
 # --- helpers ---
 

@@ -1,7 +1,7 @@
 import pytest
 
-from loglens.models import LogEntry
-from loglens.pipeline.worker import run_worker_pool
+from loglens.detection.worker import run_worker_pool
+from loglens.domain.models import LogEntry
 
 
 def make_entry(msg: str) -> LogEntry:

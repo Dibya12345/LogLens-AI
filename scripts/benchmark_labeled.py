@@ -1,8 +1,8 @@
 import argparse, time
 from pathlib import Path
 
-from loglens.pipeline.parser import StreamParser
-from loglens.pipeline.run import run, RunConfig
+from loglens.detection.parser import StreamParser
+from loglens.detection.run import run, RunConfig
 
 try:
     from eval_harness import threshold_sweep

@@ -8,11 +8,24 @@ from unittest import mock
 
 import pytest
 
-from loglens.llm import AzureOptions, LLMClient, LLMConfig, LLMError, LLMResponse, TokenUsage
-from loglens.llm.providers import get_provider
-from loglens.llm.rca import RCAResult, build_rca_context, run_ask, run_rca, save_report
-from loglens.models import LogEntry
-from loglens.output.html_report import render_html_report
+from loglens.domain.models import LogEntry
+from loglens.infrastructure.llm import (
+    AzureOptions,
+    LLMClient,
+    LLMConfig,
+    LLMError,
+    LLMResponse,
+    TokenUsage,
+)
+from loglens.infrastructure.llm.providers import get_provider
+from loglens.infrastructure.llm.rca import (
+    RCAResult,
+    build_rca_context,
+    run_ask,
+    run_rca,
+    save_report,
+)
+from loglens.infrastructure.output.html_report import render_html_report
 
 
 def _fake_response(content="## Incident Summary\nAll good.", usage=None):

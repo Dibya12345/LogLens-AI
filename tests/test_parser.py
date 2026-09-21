@@ -1,6 +1,6 @@
 import pytest
 
-from loglens.pipeline.parser import detect_format, infer_level, parse_line
+from loglens.detection.parser import detect_format, infer_level, parse_line
 
 # --- original format tests ---
 

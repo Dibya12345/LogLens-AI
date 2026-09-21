@@ -6,10 +6,10 @@ import sys
 
 import pytest
 
-import loglens.llm.rca as rca_mod
+import loglens.infrastructure.llm.rca as rca_mod
 from loglens import LiveDetector, LogLensHandler, analyze, analyze_async
-from loglens.llm import LLMResponse, TokenUsage
-from loglens.pipeline.ingestion import AsyncCommandReader, CommandError
+from loglens.detection.ingestion import AsyncCommandReader, CommandError
+from loglens.infrastructure.llm import LLMResponse, TokenUsage
 
 LINES = (
     [f"2024-01-01T00:00:{i:02d}Z INFO api request completed {i % 7}ms" for i in range(40)]
@@ -247,13 +247,13 @@ def test_watch_cli_html_report(fake_llm, tmp_path):
             sys.executable,
             "-c",
             # patch the LLM inside the subprocess, then invoke the CLI
-            "import loglens.llm.rca as m;\n"
-            "from loglens.llm import TokenUsage, LLMResponse\n"
+            "import loglens.infrastructure.llm.rca as m;\n"
+            "from loglens.infrastructure.llm import TokenUsage, LLMResponse\n"
             "class F:\n"
             "  def __init__(s,c): pass\n"
             "  def chat(s,msgs): return LLMResponse(content='Root cause: db pool exhausted.', usage=TokenUsage())\n"
             "m.LLMClient=F\n"
-            "import sys; from loglens.cli import app\n"
+            "import sys; from loglens.interface.cli import app\n"
             f"sys.argv=['loglens','watch',"
             f"\"printf 'INFO ok\\\\nFATAL db split-brain detected\\\\n"
             f"ERROR db connection refused\\\\n'\","

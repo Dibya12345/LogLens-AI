@@ -1,7 +1,7 @@
 import numpy as np
 
-from loglens.models import LogEntry
-from loglens.pipeline.embeddings import EmbeddingEngine
+from loglens.detection.embeddings import EmbeddingEngine
+from loglens.domain.models import LogEntry
 
 
 def test_embed_chunking_matches_single_pass():

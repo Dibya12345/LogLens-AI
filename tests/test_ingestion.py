@@ -4,10 +4,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from loglens.pipeline.ingestion import get_reader
-from loglens.pipeline.ingestion.file import AsyncFileReader
-from loglens.pipeline.ingestion.http import AsyncHTTPReader
-from loglens.pipeline.ingestion.stdin import AsyncStdinReader
+from loglens.detection.ingestion import get_reader
+from loglens.detection.ingestion.file import AsyncFileReader
+from loglens.detection.ingestion.http import AsyncHTTPReader
+from loglens.detection.ingestion.stdin import AsyncStdinReader
 
 
 def test_get_reader_returns_file_reader():
@@ -58,7 +58,7 @@ async def test_http_reader_mocked():
     mock_session.get.return_value.__aenter__ = AsyncMock(return_value=mock_response)
     mock_session.get.return_value.__aexit__ = AsyncMock(return_value=False)
 
-    with patch("loglens.pipeline.ingestion.http.aiohttp.ClientSession") as mock_cls:
+    with patch("loglens.detection.ingestion.http.aiohttp.ClientSession") as mock_cls:
         mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
 

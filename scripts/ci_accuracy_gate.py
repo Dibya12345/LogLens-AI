@@ -1,6 +1,6 @@
 import re
 from typer.testing import CliRunner
-from loglens.cli import app
+from loglens.interface.cli import app
 from loglens import __version__
 runner = CliRunner()
 

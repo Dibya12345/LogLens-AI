@@ -1,0 +1,2212 @@
+From fdbdf18624b1f2a19744daf034dd90ab7296a922 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 21 Sep 2026 18:52:54 +0000
+Subject: [PATCH] Phase 6: reorganize modules into layer packages
+ (domain/detection/application/infrastructure/interface)
+
+---
+ .github/workflows/ci.yml                      |   2 +-
+ pyproject.toml                                |   4 +-
+ scripts/benchmark_labeled.py                  | 182 +++++------
+ scripts/ci_accuracy_gate.py                   |   2 +-
+ scripts/eval_harness.py                       | 290 +++++++++---------
+ scripts/try_it.py                             | 272 ++++++++--------
+ src/loglens/__init__.py                       |  28 +-
+ .../{output => application}/__init__.py       |   0
+ src/loglens/{ => application}/api.py          |  14 +-
+ src/loglens/{ => application}/live.py         |  12 +-
+ src/loglens/{ => application}/monitor.py      |  18 +-
+ src/loglens/{ => application}/reporting.py    |   6 +-
+ .../{pipeline => detection}/__init__.py       |   0
+ .../{pipeline => detection}/benchmark.py      |   8 +-
+ src/loglens/{pipeline => detection}/cloud.py  |   2 +-
+ .../deep_embeddings.py                        |   6 +-
+ .../{pipeline => detection}/detector.py       |   6 +-
+ .../{pipeline => detection}/embeddings.py     |   4 +-
+ .../{pipeline => detection}/filetype.py       |   0
+ .../{pipeline => detection}/grouping.py       |   4 +-
+ .../ingestion/__init__.py                     |   0
+ .../ingestion/command.py                      |   0
+ .../{pipeline => detection}/ingestion/file.py |   0
+ .../{pipeline => detection}/ingestion/http.py |   0
+ .../ingestion/stdin.py                        |   0
+ src/loglens/{pipeline => detection}/parser.py |   4 +-
+ src/loglens/{pipeline => detection}/run.py    | 128 ++++----
+ .../{pipeline => detection}/speedbench.py     |   6 +-
+ .../{pipeline => detection}/synonyms.py       |   0
+ .../{pipeline => detection}/templates.py      |   2 +-
+ src/loglens/{pipeline => detection}/turbo.py  |   6 +-
+ src/loglens/{pipeline => detection}/worker.py |   2 +-
+ src/loglens/{output => domain}/__init__.py    |   0
+ src/loglens/{ => domain}/models.py            |   0
+ src/loglens/{ => domain}/redact.py            |   0
+ src/loglens/{ => domain}/severity.py          |   0
+ .../{output => infrastructure}/__init__.py    |   0
+ src/loglens/{ => infrastructure}/alerts.py    |   6 +-
+ src/loglens/infrastructure/llm/__init__.py    |  17 +
+ .../{ => infrastructure}/llm/client.py        |   6 +-
+ .../{ => infrastructure}/llm/config.py        |   2 +-
+ .../{ => infrastructure}/llm/providers.py     |   4 +-
+ src/loglens/{ => infrastructure}/llm/rca.py   |  10 +-
+ .../{ => infrastructure}/llm/transport.py     |   0
+ .../{ => infrastructure}/output/__init__.py   |   0
+ .../output/html_report.py                     |   4 +-
+ .../{ => infrastructure}/output/terminal.py   |   0
+ src/loglens/{output => interface}/__init__.py |   0
+ src/loglens/{ => interface}/cli.py            |  74 +++--
+ src/loglens/{ => interface}/handler.py        |   8 +-
+ src/loglens/llm/__init__.py                   |  17 -
+ tests/test_accuracy.py                        |  14 +-
+ tests/test_benchmark.py                       |   4 +-
+ tests/test_cli.py                             |   2 +-
+ tests/test_detector.py                        |   4 +-
+ tests/test_embeddings.py                      |  16 +-
+ tests/test_filetype.py                        |   2 +-
+ tests/test_ingestion.py                       |  10 +-
+ tests/test_llm.py                             |  23 +-
+ tests/test_monitor.py                         |   6 +-
+ tests/test_parser.py                          |   2 +-
+ tests/test_render_hygiene.py                  |   8 +-
+ tests/test_sdk.py                             |  12 +-
+ tests/test_security.py                        |   6 +-
+ tests/test_train.py                           |   4 +-
+ tests/test_worker.py                          |   4 +-
+ 66 files changed, 646 insertions(+), 627 deletions(-)
+ copy src/loglens/{output => application}/__init__.py (100%)
+ rename src/loglens/{ => application}/api.py (94%)
+ rename src/loglens/{ => application}/live.py (93%)
+ rename src/loglens/{ => application}/monitor.py (94%)
+ rename src/loglens/{ => application}/reporting.py (91%)
+ rename src/loglens/{pipeline => detection}/__init__.py (100%)
+ rename src/loglens/{pipeline => detection}/benchmark.py (97%)
+ rename src/loglens/{pipeline => detection}/cloud.py (98%)
+ rename src/loglens/{pipeline => detection}/deep_embeddings.py (96%)
+ rename src/loglens/{pipeline => detection}/detector.py (99%)
+ rename src/loglens/{pipeline => detection}/embeddings.py (98%)
+ rename src/loglens/{pipeline => detection}/filetype.py (100%)
+ rename src/loglens/{pipeline => detection}/grouping.py (94%)
+ rename src/loglens/{pipeline => detection}/ingestion/__init__.py (100%)
+ rename src/loglens/{pipeline => detection}/ingestion/command.py (100%)
+ rename src/loglens/{pipeline => detection}/ingestion/file.py (100%)
+ rename src/loglens/{pipeline => detection}/ingestion/http.py (100%)
+ rename src/loglens/{pipeline => detection}/ingestion/stdin.py (100%)
+ rename src/loglens/{pipeline => detection}/parser.py (99%)
+ rename src/loglens/{pipeline => detection}/run.py (81%)
+ rename src/loglens/{pipeline => detection}/speedbench.py (94%)
+ rename src/loglens/{pipeline => detection}/synonyms.py (100%)
+ rename src/loglens/{pipeline => detection}/templates.py (99%)
+ rename src/loglens/{pipeline => detection}/turbo.py (96%)
+ rename src/loglens/{pipeline => detection}/worker.py (97%)
+ copy src/loglens/{output => domain}/__init__.py (100%)
+ rename src/loglens/{ => domain}/models.py (100%)
+ rename src/loglens/{ => domain}/redact.py (100%)
+ rename src/loglens/{ => domain}/severity.py (100%)
+ copy src/loglens/{output => infrastructure}/__init__.py (100%)
+ rename src/loglens/{ => infrastructure}/alerts.py (97%)
+ create mode 100644 src/loglens/infrastructure/llm/__init__.py
+ rename src/loglens/{ => infrastructure}/llm/client.py (78%)
+ rename src/loglens/{ => infrastructure}/llm/config.py (97%)
+ rename src/loglens/{ => infrastructure}/llm/providers.py (96%)
+ rename src/loglens/{ => infrastructure}/llm/rca.py (95%)
+ rename src/loglens/{ => infrastructure}/llm/transport.py (100%)
+ copy src/loglens/{ => infrastructure}/output/__init__.py (100%)
+ rename src/loglens/{ => infrastructure}/output/html_report.py (98%)
+ rename src/loglens/{ => infrastructure}/output/terminal.py (100%)
+ rename src/loglens/{output => interface}/__init__.py (100%)
+ rename src/loglens/{ => interface}/cli.py (93%)
+ rename src/loglens/{ => interface}/handler.py (93%)
+ delete mode 100644 src/loglens/llm/__init__.py
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 19b67d5..bfdfc23 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -96,7 +96,7 @@ jobs:
+           PY
+ 
+       - name: Import smoke test
+-        run: python -c "import loglens; from loglens.cli import app; print('import OK')"
++        run: python -c "import loglens; from loglens.interface.cli import app; print('import OK')"
+ 
+       # Quality gates are now enforced (blocking). A violation fails the build.
+       - name: Lint (ruff)
+diff --git a/pyproject.toml b/pyproject.toml
+index 5f6a708..465ca2e 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -69,7 +69,7 @@ dev = [
+ ]
+ 
+ [project.scripts]
+-loglens = "loglens.cli:app"
++loglens = "loglens.interface.cli:app"
+ 
+ [tool.hatch.version]
+ path = "src/loglens/_version.py"
+@@ -95,7 +95,7 @@ ignore = [
+ 
+ [tool.ruff.lint.per-file-ignores]
+ "tests/**" = ["B", "E402"]
+-"src/loglens/cli.py" = ["F821"]
++"src/loglens/interface/cli.py" = ["F821"]
+ 
+ [tool.mypy]
+ python_version = "3.10"
+diff --git a/scripts/benchmark_labeled.py b/scripts/benchmark_labeled.py
+index a0b6570..347d2f8 100644
+--- a/scripts/benchmark_labeled.py
++++ b/scripts/benchmark_labeled.py
+@@ -1,92 +1,92 @@
+-import argparse, time
+-from pathlib import Path
+-
+-from loglens.pipeline.parser import StreamParser
+-from loglens.pipeline.run import run, RunConfig
+-
+-try:
+-    from eval_harness import threshold_sweep
+-except ImportError:
+-    threshold_sweep = None
+-
+-
+-def labels_for(lines):
+-    y = []
+-    for ln in lines:
+-        tok = ln.split(" ", 1)[0] if ln.strip() else "-"
+-        y.append(0 if tok == "-" else 1)
+-    return y
+-
+-
+-def bench_one(path, mode, limit, sensitivity, threshold, sweep, recall_floor):
+-    raw = Path(path).read_text(errors="ignore").splitlines()
+-    if limit:
+-        raw = raw[:limit]
+-    y_true = labels_for(raw)
+-    n_alert = sum(y_true)
+-    all_normal = (n_alert == 0)
+-
+-    print("\n" + "#" * 56)
+-    print(f"# {path}")
+-    print(f"# {len(raw):,} lines | {n_alert:,} alerts "
+-          f"({100*n_alert/max(len(raw),1):.2f}%)"
+-          + ("  [ALL-NORMAL -> FP-rate mode]" if all_normal else ""))
+-    print("#" * 56)
+-
+-    entries = list(StreamParser().parse_all(raw))
+-    t0 = time.time()
+-    result = run(entries, RunConfig(mode=mode, template_level=True,
+-                                    sensitivity=sensitivity,
+-                                    threshold=threshold))
+-    dt = time.time() - t0
+-    print(f"Detection in {dt:.1f}s ({len(entries)/max(dt,1e-9):,.0f} l/s)")
+-
+-    n = min(len(result.flagged), len(y_true))
+-    y_true = y_true[:n]
+-    scores = result.scores[:n]
+-
+-    if sweep and threshold_sweep is not None and not all_normal:
+-        print("\n--- threshold sweep " + "-" * 24)
+-        out = threshold_sweep(scores, y_true, recall_floor=recall_floor)
+-        th = out["best_recall_floor"][0]
+-        print(f"(best @ recall>={recall_floor}: threshold {th:.4f})")
+-        print("-" * 44)
+-
+-    y_pred = [1 if bool(result.flagged[i]) else 0 for i in range(n)]
+-    tp = sum(1 for i in range(n) if y_true[i] == 1 and y_pred[i] == 1)
+-    fp = sum(1 for i in range(n) if y_true[i] == 0 and y_pred[i] == 1)
+-    fn = sum(1 for i in range(n) if y_true[i] == 1 and y_pred[i] == 0)
+-    tn = n - tp - fp - fn
+-
+-    used_th = threshold if threshold is not None else f"{sensitivity} preset"
+-    print("=" * 44)
+-    if all_normal:
+-        rate = 100 * fp / max(n, 1)
+-        print(f"  FP-rate mode [th={used_th}]")
+-        print(f"  Lines: {n:,} | False flags: {fp:,} ({rate:.2f}%)")
+-    else:
+-        p = tp / max(tp + fp, 1)
+-        r = tp / max(tp + fn, 1)
+-        f1 = 2 * p * r / max(p + r, 1e-9)
+-        print(f"  [{mode}/th={used_th}]")
+-        print(f"  Flagged: {tp+fp:,}")
+-        print(f"  Precision {p:.3f} | Recall {r:.3f} | F1 {f1:.3f}")
+-        print(f"  TP={tp} FP={fp} FN={fn} TN={tn}")
+-    print("=" * 44)
+-
+-
+-if __name__ == "__main__":
+-    ap = argparse.ArgumentParser()
+-    ap.add_argument("--file", action="append", required=True,
+-                    help="log file (repeatable)")
+-    ap.add_argument("--mode", default="fast", choices=["fast", "deep", "turbo"])
+-    ap.add_argument("--limit", type=int, default=None)
+-    ap.add_argument("--sensitivity", default="normal",
+-                    choices=["low", "normal", "high"])
+-    ap.add_argument("--threshold", type=float, default=None)
+-    ap.add_argument("--sweep", action="store_true")
+-    ap.add_argument("--recall-floor", type=float, default=0.95)
+-    args = ap.parse_args()
+-    for f in args.file:
+-        bench_one(f, args.mode, args.limit, args.sensitivity,
++import argparse, time
++from pathlib import Path
++
++from loglens.detection.parser import StreamParser
++from loglens.detection.run import run, RunConfig
++
++try:
++    from eval_harness import threshold_sweep
++except ImportError:
++    threshold_sweep = None
++
++
++def labels_for(lines):
++    y = []
++    for ln in lines:
++        tok = ln.split(" ", 1)[0] if ln.strip() else "-"
++        y.append(0 if tok == "-" else 1)
++    return y
++
++
++def bench_one(path, mode, limit, sensitivity, threshold, sweep, recall_floor):
++    raw = Path(path).read_text(errors="ignore").splitlines()
++    if limit:
++        raw = raw[:limit]
++    y_true = labels_for(raw)
++    n_alert = sum(y_true)
++    all_normal = (n_alert == 0)
++
++    print("\n" + "#" * 56)
++    print(f"# {path}")
++    print(f"# {len(raw):,} lines | {n_alert:,} alerts "
++          f"({100*n_alert/max(len(raw),1):.2f}%)"
++          + ("  [ALL-NORMAL -> FP-rate mode]" if all_normal else ""))
++    print("#" * 56)
++
++    entries = list(StreamParser().parse_all(raw))
++    t0 = time.time()
++    result = run(entries, RunConfig(mode=mode, template_level=True,
++                                    sensitivity=sensitivity,
++                                    threshold=threshold))
++    dt = time.time() - t0
++    print(f"Detection in {dt:.1f}s ({len(entries)/max(dt,1e-9):,.0f} l/s)")
++
++    n = min(len(result.flagged), len(y_true))
++    y_true = y_true[:n]
++    scores = result.scores[:n]
++
++    if sweep and threshold_sweep is not None and not all_normal:
++        print("\n--- threshold sweep " + "-" * 24)
++        out = threshold_sweep(scores, y_true, recall_floor=recall_floor)
++        th = out["best_recall_floor"][0]
++        print(f"(best @ recall>={recall_floor}: threshold {th:.4f})")
++        print("-" * 44)
++
++    y_pred = [1 if bool(result.flagged[i]) else 0 for i in range(n)]
++    tp = sum(1 for i in range(n) if y_true[i] == 1 and y_pred[i] == 1)
++    fp = sum(1 for i in range(n) if y_true[i] == 0 and y_pred[i] == 1)
++    fn = sum(1 for i in range(n) if y_true[i] == 1 and y_pred[i] == 0)
++    tn = n - tp - fp - fn
++
++    used_th = threshold if threshold is not None else f"{sensitivity} preset"
++    print("=" * 44)
++    if all_normal:
++        rate = 100 * fp / max(n, 1)
++        print(f"  FP-rate mode [th={used_th}]")
++        print(f"  Lines: {n:,} | False flags: {fp:,} ({rate:.2f}%)")
++    else:
++        p = tp / max(tp + fp, 1)
++        r = tp / max(tp + fn, 1)
++        f1 = 2 * p * r / max(p + r, 1e-9)
++        print(f"  [{mode}/th={used_th}]")
++        print(f"  Flagged: {tp+fp:,}")
++        print(f"  Precision {p:.3f} | Recall {r:.3f} | F1 {f1:.3f}")
++        print(f"  TP={tp} FP={fp} FN={fn} TN={tn}")
++    print("=" * 44)
++
++
++if __name__ == "__main__":
++    ap = argparse.ArgumentParser()
++    ap.add_argument("--file", action="append", required=True,
++                    help="log file (repeatable)")
++    ap.add_argument("--mode", default="fast", choices=["fast", "deep", "turbo"])
++    ap.add_argument("--limit", type=int, default=None)
++    ap.add_argument("--sensitivity", default="normal",
++                    choices=["low", "normal", "high"])
++    ap.add_argument("--threshold", type=float, default=None)
++    ap.add_argument("--sweep", action="store_true")
++    ap.add_argument("--recall-floor", type=float, default=0.95)
++    args = ap.parse_args()
++    for f in args.file:
++        bench_one(f, args.mode, args.limit, args.sensitivity,
+                   args.threshold, args.sweep, args.recall_floor)
+\ No newline at end of file
+diff --git a/scripts/ci_accuracy_gate.py b/scripts/ci_accuracy_gate.py
+index 8693647..180e11c 100644
+--- a/scripts/ci_accuracy_gate.py
++++ b/scripts/ci_accuracy_gate.py
+@@ -1,6 +1,6 @@
+ import re
+ from typer.testing import CliRunner
+-from loglens.cli import app
++from loglens.interface.cli import app
+ from loglens import __version__
+ runner = CliRunner()
+ 
+diff --git a/scripts/eval_harness.py b/scripts/eval_harness.py
+index 3554059..c143cc0 100644
+--- a/scripts/eval_harness.py
++++ b/scripts/eval_harness.py
+@@ -1,146 +1,146 @@
+-from __future__ import annotations
+-import argparse
+-import json
+-import os
+-import sys
+-import time
+-import numpy as np
+-from typing import List, Tuple
+-
+-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+-
+-import numpy as np                                          
+-from loglens.models import LogEntry                          
+-from loglens.pipeline.run import run, RunConfig               
+-
+-
+-def _load_jsonl(path: str) -> Tuple[List[LogEntry], np.ndarray]:
+-    entries, labels = [], []
+-    with open(path, encoding="utf-8") as f:
+-        for line in f:
+-            line = line.strip()
+-            if not line:
+-                continue
+-            o = json.loads(line)
+-            entries.append(LogEntry(
+-                timestamp=str(o.get("timestamp", "")),
+-                level=str(o.get("level", "INFO")),
+-                service=str(o.get("service", "unknown")),
+-                message=str(o.get("message", "")),
+-                raw=line,
+-            ))
+-            labels.append(int(o.get("label", 0)))
+-    return entries, np.array(labels, dtype=bool)
+-
+-
+-def _load_log_with_sidecar(path: str) -> Tuple[List[LogEntry], np.ndarray]:
+-    from loglens.pipeline.parser import detect_format, parse_line
+-    lines = [l.rstrip("\n") for l in open(path, encoding="utf-8") if l.strip()]
+-    fmt = detect_format(lines[0]) if lines else "generic"
+-    entries = [e for e in (parse_line(l, fmt) for l in lines) if e is not None]
+-    label_path = os.path.splitext(path)[0] + ".labels"
+-    if os.path.exists(label_path):
+-        labels = np.array(
+-            [int(x) for x in open(label_path).read().split()], dtype=bool)
+-    else:
+-        labels = np.zeros(len(entries), dtype=bool)
+-    return entries, labels[:len(entries)]
+-
+-
+-def load_task(path: str):
+-    if path.endswith(".jsonl"):
+-        return _load_jsonl(path)
+-    return _load_log_with_sidecar(path)
+-
+-
+-def score(pred: np.ndarray, truth: np.ndarray) -> dict:
+-    tp = int(np.sum(pred & truth))
+-    fp = int(np.sum(pred & ~truth))
+-    fn = int(np.sum(~pred & truth))
+-    tn = int(np.sum(~pred & ~truth))
+-    prec = tp / (tp + fp) if (tp + fp) else 0.0
+-    rec = tp / (tp + fn) if (tp + fn) else 0.0
+-    f1 = 2 * prec * rec / (prec + rec) if (prec + rec) else 0.0
+-    return {"tp": tp, "fp": fp, "fn": fn, "tn": tn,
+-            "precision": prec, "recall": rec, "f1": f1}
+-
+-
+-def evaluate(path: str, cfg: RunConfig) -> dict:
+-    entries, truth = load_task(path)
+-    t0 = time.perf_counter()
+-    res = run(entries, cfg)
+-    dt = time.perf_counter() - t0
+-    m = score(np.asarray(res.flagged), truth)
+-    m.update(task=os.path.basename(path), n=len(entries),
+-             positives=int(truth.sum()), seconds=round(dt, 3),
+-             lines_per_s=round(len(entries) / dt) if dt else 0)
+-    return {"metrics": m, "result": res}
+-
+-
+-def main():
+-    ap = argparse.ArgumentParser(description="LogLens eval harness")
+-    ap.add_argument("tasks", nargs="+", help="labeled .jsonl or .log files")
+-    ap.add_argument("--mode", default="fast", choices=["fast", "deep"])
+-    ap.add_argument("--sensitivity", default="normal",
+-                    choices=["low", "normal", "high"])
+-    ap.add_argument("--auto-threshold", action="store_true")
+-    ap.add_argument("--html", help="write HTML report for the FIRST task here")
+-    args = ap.parse_args()
+-
+-    cfg = RunConfig(mode=args.mode, sensitivity=args.sensitivity,
+-                    auto_threshold=args.auto_threshold)
+-
+-    print(f"{'task':<20}{'n':>8}{'pos':>6}{'P':>7}{'R':>7}{'F1':>7}"
+-          f"{'sec':>8}{'ln/s':>9}")
+-    print("-" * 72)
+-    f1s = []
+-    first = None
+-    for t in args.tasks:
+-        out = evaluate(t, cfg)
+-        m = out["metrics"]
+-        if first is None:
+-            first = out["result"]
+-        f1s.append(m["f1"])
+-        print(f"{m['task'][:19]:<20}{m['n']:>8,}{m['positives']:>6}"
+-              f"{m['precision']:>7.3f}{m['recall']:>7.3f}{m['f1']:>7.3f}"
+-              f"{m['seconds']:>8}{m['lines_per_s']:>9,}")
+-    print("-" * 72)
+-    print(f"mean F1: {np.mean(f1s):.3f}")
+-
+-    if args.html and first is not None:
+-        from loglens.output.report import write_report
+-        write_report(first, args.html, title=f"LogLens — {args.tasks[0]}")
+-        print(f"HTML report -> {args.html}")
+-
+-
+-
+-def threshold_sweep(scores, y_true, recall_floor: float = 0.95,
+-                    verbose: bool = True):
+-    s = np.asarray(scores, dtype=float)
+-    y = np.asarray(y_true, dtype=bool)
+-    best_f1 = best_fl = (0.0, 0.0, 0.0, -1.0, 0)
+-    rows = []
+-    for th in sorted(set(np.round(s, 4)), reverse=True):
+-        p = s >= th
+-        tp = int((p & y).sum()); fp = int((p & ~y).sum())
+-        fn = int((~p & y).sum())
+-        pr = tp / max(tp + fp, 1); rc = tp / max(tp + fn, 1)
+-        f1 = 2 * pr * rc / max(pr + rc, 1e-9)
+-        rows.append((th, pr, rc, f1, int(p.sum())))
+-        if f1 > best_f1[3]:
+-            best_f1 = rows[-1]
+-        if rc >= recall_floor and f1 > best_fl[3]:
+-            best_fl = rows[-1]
+-    if verbose:
+-        print(f"{'threshold':>10} {'P':>7} {'R':>7} {'F1':>7} {'flagged':>8}")
+-        for tag, row in (("F1-optimal", best_f1),
+-                         (f"best @ R>={recall_floor}", best_fl)):
+-            th, pr, rc, f1, fl = row
+-            print(f"{tag:<22} th={th:.4f} P={pr:.3f} R={rc:.3f} "
+-                  f"F1={f1:.3f} flagged={fl}")
+-    return {"best_f1": best_f1, "best_recall_floor": best_fl,
+-            "curve": rows}
+-
+-
+-if __name__ == "__main__":
++from __future__ import annotations
++import argparse
++import json
++import os
++import sys
++import time
++import numpy as np
++from typing import List, Tuple
++
++sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
++
++import numpy as np                                          
++from loglens.domain.models import LogEntry                          
++from loglens.detection.run import run, RunConfig               
++
++
++def _load_jsonl(path: str) -> Tuple[List[LogEntry], np.ndarray]:
++    entries, labels = [], []
++    with open(path, encoding="utf-8") as f:
++        for line in f:
++            line = line.strip()
++            if not line:
++                continue
++            o = json.loads(line)
++            entries.append(LogEntry(
++                timestamp=str(o.get("timestamp", "")),
++                level=str(o.get("level", "INFO")),
++                service=str(o.get("service", "unknown")),
++                message=str(o.get("message", "")),
++                raw=line,
++            ))
++            labels.append(int(o.get("label", 0)))
++    return entries, np.array(labels, dtype=bool)
++
++
++def _load_log_with_sidecar(path: str) -> Tuple[List[LogEntry], np.ndarray]:
++    from loglens.detection.parser import detect_format, parse_line
++    lines = [l.rstrip("\n") for l in open(path, encoding="utf-8") if l.strip()]
++    fmt = detect_format(lines[0]) if lines else "generic"
++    entries = [e for e in (parse_line(l, fmt) for l in lines) if e is not None]
++    label_path = os.path.splitext(path)[0] + ".labels"
++    if os.path.exists(label_path):
++        labels = np.array(
++            [int(x) for x in open(label_path).read().split()], dtype=bool)
++    else:
++        labels = np.zeros(len(entries), dtype=bool)
++    return entries, labels[:len(entries)]
++
++
++def load_task(path: str):
++    if path.endswith(".jsonl"):
++        return _load_jsonl(path)
++    return _load_log_with_sidecar(path)
++
++
++def score(pred: np.ndarray, truth: np.ndarray) -> dict:
++    tp = int(np.sum(pred & truth))
++    fp = int(np.sum(pred & ~truth))
++    fn = int(np.sum(~pred & truth))
++    tn = int(np.sum(~pred & ~truth))
++    prec = tp / (tp + fp) if (tp + fp) else 0.0
++    rec = tp / (tp + fn) if (tp + fn) else 0.0
++    f1 = 2 * prec * rec / (prec + rec) if (prec + rec) else 0.0
++    return {"tp": tp, "fp": fp, "fn": fn, "tn": tn,
++            "precision": prec, "recall": rec, "f1": f1}
++
++
++def evaluate(path: str, cfg: RunConfig) -> dict:
++    entries, truth = load_task(path)
++    t0 = time.perf_counter()
++    res = run(entries, cfg)
++    dt = time.perf_counter() - t0
++    m = score(np.asarray(res.flagged), truth)
++    m.update(task=os.path.basename(path), n=len(entries),
++             positives=int(truth.sum()), seconds=round(dt, 3),
++             lines_per_s=round(len(entries) / dt) if dt else 0)
++    return {"metrics": m, "result": res}
++
++
++def main():
++    ap = argparse.ArgumentParser(description="LogLens eval harness")
++    ap.add_argument("tasks", nargs="+", help="labeled .jsonl or .log files")
++    ap.add_argument("--mode", default="fast", choices=["fast", "deep"])
++    ap.add_argument("--sensitivity", default="normal",
++                    choices=["low", "normal", "high"])
++    ap.add_argument("--auto-threshold", action="store_true")
++    ap.add_argument("--html", help="write HTML report for the FIRST task here")
++    args = ap.parse_args()
++
++    cfg = RunConfig(mode=args.mode, sensitivity=args.sensitivity,
++                    auto_threshold=args.auto_threshold)
++
++    print(f"{'task':<20}{'n':>8}{'pos':>6}{'P':>7}{'R':>7}{'F1':>7}"
++          f"{'sec':>8}{'ln/s':>9}")
++    print("-" * 72)
++    f1s = []
++    first = None
++    for t in args.tasks:
++        out = evaluate(t, cfg)
++        m = out["metrics"]
++        if first is None:
++            first = out["result"]
++        f1s.append(m["f1"])
++        print(f"{m['task'][:19]:<20}{m['n']:>8,}{m['positives']:>6}"
++              f"{m['precision']:>7.3f}{m['recall']:>7.3f}{m['f1']:>7.3f}"
++              f"{m['seconds']:>8}{m['lines_per_s']:>9,}")
++    print("-" * 72)
++    print(f"mean F1: {np.mean(f1s):.3f}")
++
++    if args.html and first is not None:
++        from loglens.infrastructure.output.report import write_report
++        write_report(first, args.html, title=f"LogLens — {args.tasks[0]}")
++        print(f"HTML report -> {args.html}")
++
++
++
++def threshold_sweep(scores, y_true, recall_floor: float = 0.95,
++                    verbose: bool = True):
++    s = np.asarray(scores, dtype=float)
++    y = np.asarray(y_true, dtype=bool)
++    best_f1 = best_fl = (0.0, 0.0, 0.0, -1.0, 0)
++    rows = []
++    for th in sorted(set(np.round(s, 4)), reverse=True):
++        p = s >= th
++        tp = int((p & y).sum()); fp = int((p & ~y).sum())
++        fn = int((~p & y).sum())
++        pr = tp / max(tp + fp, 1); rc = tp / max(tp + fn, 1)
++        f1 = 2 * pr * rc / max(pr + rc, 1e-9)
++        rows.append((th, pr, rc, f1, int(p.sum())))
++        if f1 > best_f1[3]:
++            best_f1 = rows[-1]
++        if rc >= recall_floor and f1 > best_fl[3]:
++            best_fl = rows[-1]
++    if verbose:
++        print(f"{'threshold':>10} {'P':>7} {'R':>7} {'F1':>7} {'flagged':>8}")
++        for tag, row in (("F1-optimal", best_f1),
++                         (f"best @ R>={recall_floor}", best_fl)):
++            th, pr, rc, f1, fl = row
++            print(f"{tag:<22} th={th:.4f} P={pr:.3f} R={rc:.3f} "
++                  f"F1={f1:.3f} flagged={fl}")
++    return {"best_f1": best_f1, "best_recall_floor": best_fl,
++            "curve": rows}
++
++
++if __name__ == "__main__":
+     main()
+\ No newline at end of file
+diff --git a/scripts/try_it.py b/scripts/try_it.py
+index ec721a5..6c7b488 100644
+--- a/scripts/try_it.py
++++ b/scripts/try_it.py
+@@ -1,137 +1,137 @@
+-import logging
+-import subprocess
+-import sys
+-import tempfile
+-from pathlib import Path
+-
+-from loglens import LiveDetector, LogLensHandler, analyze
+-
+-LINES = (
+-    [f"2024-01-01T00:00:{i % 60:02d}Z INFO api request completed {i % 7}ms"
+-     for i in range(60)]
+-    + ["2024-01-01T00:01:00Z FATAL db disk failure raid degraded"]
+-    + [f"2024-01-01T00:01:{i:02d}Z ERROR db connection refused host=db-1"
+-       for i in range(1, 13)]
+-)
+-
+-RESULTS = []
+-
+-
+-def check(name, cond, detail=""):
+-    RESULTS.append((name, bool(cond)))
+-    mark = "\033[92mPASS\033[0m" if cond else "\033[91mFAIL\033[0m"
+-    print(f"  [{mark}] {name}" + (f"  — {detail}" if detail else ""))
+-
+-
+-def main():
+-    print("\n1) analyze(file)")
+-    with tempfile.TemporaryDirectory() as td:
+-        p = Path(td) / "app.log"
+-        p.write_text("\n".join(LINES))
+-        r = analyze(str(p))
+-    check("file analyzed", r.total == len(LINES), f"{r.total} entries")
+-    check("FATAL + ERROR storm caught",
+-          {"FATAL", "ERROR"} <= {a.level for a in r.anomalies},
+-          f"{len(r.anomalies)} anomalies: {r.by_level()}")
+-
+-    print("\n2) analyze(lines=...)")
+-    r = analyze(lines=LINES)
+-    check("in-memory lines", len(r.anomalies) >= 13, str(r.summary()))
+-    check("anomalies sorted by score",
+-          all(r.anomalies[i].score >= r.anomalies[i + 1].score
+-              for i in range(len(r.anomalies) - 1)))
+-    check("every anomaly has reasons", all(a.reasons for a in r.anomalies))
+-
+-    print("\n3) analyze(cmd=...)   (a command's output as source)")
+-    r = analyze(cmd="printf 'INFO ok\\nERROR payment gateway timeout order=1\\n'")
+-    check("bounded command analyzed",
+-          r.total == 2 and any(a.level == "ERROR" for a in r.anomalies))
+-
+-    print("\n4) LiveDetector (streaming, exactly-once)")
+-    det = LiveDetector(window=200, rescore_every=20, min_window=5)
+-    hits = []
+-    for ln in LINES:
+-        hits += det.feed(ln)
+-    hits += det.flush()
+-    lv = [h.level for h in hits]
+-    check("FATAL surfaced", "FATAL" in lv or "CRITICAL" in lv)
+-    check("whole ERROR storm reported once each", lv.count("ERROR") == 12,
+-          f"{lv.count('ERROR')}/12")
+-    check("no benign INFO spam", "INFO" not in lv)
+-    check("exactly-once (no duplicates)",
+-          len([h.index for h in hits]) == len({h.index for h in hits}))
+-
+-    print("\n5) LogLensHandler (drop-in logging integration)")
+-    caught = []
+-    h = LogLensHandler(on_anomaly=caught.append, min_window=5,
+-                       rescore_every=10)
+-    lg = logging.getLogger("demo.svc")
+-    lg.addHandler(h)
+-    lg.setLevel(logging.DEBUG)
+-    lg.propagate = False
+-    for i in range(30):
+-        lg.info("heartbeat ok %d", i % 3)
+-    lg.critical("kernel panic null pointer dereference")
+-    h.flush()
+-    lg.removeHandler(h)
+-    check("callback fired on CRITICAL",
+-          len(caught) >= 1 and caught[0].level == "CRITICAL",
+-          f"{len(caught)} callback(s), summary={h.summary()}")
+-
+-    print("\n6) loglens watch (fake live stream, stopped after the storm)")
+-    print("   (first output can take 10-30s on WSL /mnt/c — imports are slow there)")
+-    fake_stream = (
+-        "i=0; while true; do "
+-        "echo \"2024-01-01T00:00:00Z INFO api request ok $((i%7))ms\"; "
+-        "i=$((i+1)); "
+-        "if [ $i -eq 40 ]; then echo '2024-01-01T00:00:30Z FATAL db split-brain detected'; fi; "
+-        "if [ $i -gt 50 ] && [ $i -lt 62 ]; then "
+-        "echo '2024-01-01T00:00:40Z ERROR db connection refused host=db-1'; fi; "
+-        "sleep 0.05; done")
+-    import signal
+-    import threading
+-    import time
+-
+-    proc = subprocess.Popen(
+-        [sys.executable, "-m", "loglens.cli", "watch", fake_stream, "--quiet"],
+-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+-        errors="replace")
+-
+-    def watchdog():        # absolute last resort so the demo can't hang
+-        time.sleep(120)
+-        if proc.poll() is None:
+-            proc.kill()
+-
+-    threading.Thread(target=watchdog, daemon=True).start()
+-
+-    lines, storm = [], 0
+-    deadline = time.time() + 90
+-    for line in proc.stdout:            # wait for REAL activity, not a timer
+-        lines.append(line)
+-        if "connection refused" in line:
+-            storm += 1
+-        if storm >= 5 or time.time() > deadline:
+-            break
+-    proc.send_signal(signal.SIGINT)     # = pressing Ctrl-C
+-    try:
+-        rest, _ = proc.communicate(timeout=30)
+-    except subprocess.TimeoutExpired:
+-        proc.kill()
+-        rest, _ = proc.communicate()
+-    out = "".join(lines) + (rest or "")
+-    check("watch streamed anomalies live",
+-          "FATAL" in out or "CRITICAL" in out)
+-    check("watch caught the error storm", "connection refused" in out)
+-    check("Ctrl-C produced a summary", "WATCH SUMMARY" in out)
+-    print("\n--- watch output tail " + "-" * 30)
+-    print("\n".join(out.splitlines()[-8:]))
+-    print("-" * 52)
+-
+-    failed = [n for n, ok in RESULTS if not ok]
+-    print(f"\n{'='*52}\n  {len(RESULTS) - len(failed)}/{len(RESULTS)} checks passed"
+-          + (f"  — FAILED: {failed}" if failed else "  🎉") + f"\n{'='*52}")
+-    sys.exit(1 if failed else 0)
+-
+-
+-if __name__ == "__main__":
++import logging
++import subprocess
++import sys
++import tempfile
++from pathlib import Path
++
++from loglens import LiveDetector, LogLensHandler, analyze
++
++LINES = (
++    [f"2024-01-01T00:00:{i % 60:02d}Z INFO api request completed {i % 7}ms"
++     for i in range(60)]
++    + ["2024-01-01T00:01:00Z FATAL db disk failure raid degraded"]
++    + [f"2024-01-01T00:01:{i:02d}Z ERROR db connection refused host=db-1"
++       for i in range(1, 13)]
++)
++
++RESULTS = []
++
++
++def check(name, cond, detail=""):
++    RESULTS.append((name, bool(cond)))
++    mark = "\033[92mPASS\033[0m" if cond else "\033[91mFAIL\033[0m"
++    print(f"  [{mark}] {name}" + (f"  — {detail}" if detail else ""))
++
++
++def main():
++    print("\n1) analyze(file)")
++    with tempfile.TemporaryDirectory() as td:
++        p = Path(td) / "app.log"
++        p.write_text("\n".join(LINES))
++        r = analyze(str(p))
++    check("file analyzed", r.total == len(LINES), f"{r.total} entries")
++    check("FATAL + ERROR storm caught",
++          {"FATAL", "ERROR"} <= {a.level for a in r.anomalies},
++          f"{len(r.anomalies)} anomalies: {r.by_level()}")
++
++    print("\n2) analyze(lines=...)")
++    r = analyze(lines=LINES)
++    check("in-memory lines", len(r.anomalies) >= 13, str(r.summary()))
++    check("anomalies sorted by score",
++          all(r.anomalies[i].score >= r.anomalies[i + 1].score
++              for i in range(len(r.anomalies) - 1)))
++    check("every anomaly has reasons", all(a.reasons for a in r.anomalies))
++
++    print("\n3) analyze(cmd=...)   (a command's output as source)")
++    r = analyze(cmd="printf 'INFO ok\\nERROR payment gateway timeout order=1\\n'")
++    check("bounded command analyzed",
++          r.total == 2 and any(a.level == "ERROR" for a in r.anomalies))
++
++    print("\n4) LiveDetector (streaming, exactly-once)")
++    det = LiveDetector(window=200, rescore_every=20, min_window=5)
++    hits = []
++    for ln in LINES:
++        hits += det.feed(ln)
++    hits += det.flush()
++    lv = [h.level for h in hits]
++    check("FATAL surfaced", "FATAL" in lv or "CRITICAL" in lv)
++    check("whole ERROR storm reported once each", lv.count("ERROR") == 12,
++          f"{lv.count('ERROR')}/12")
++    check("no benign INFO spam", "INFO" not in lv)
++    check("exactly-once (no duplicates)",
++          len([h.index for h in hits]) == len({h.index for h in hits}))
++
++    print("\n5) LogLensHandler (drop-in logging integration)")
++    caught = []
++    h = LogLensHandler(on_anomaly=caught.append, min_window=5,
++                       rescore_every=10)
++    lg = logging.getLogger("demo.svc")
++    lg.addHandler(h)
++    lg.setLevel(logging.DEBUG)
++    lg.propagate = False
++    for i in range(30):
++        lg.info("heartbeat ok %d", i % 3)
++    lg.critical("kernel panic null pointer dereference")
++    h.flush()
++    lg.removeHandler(h)
++    check("callback fired on CRITICAL",
++          len(caught) >= 1 and caught[0].level == "CRITICAL",
++          f"{len(caught)} callback(s), summary={h.summary()}")
++
++    print("\n6) loglens watch (fake live stream, stopped after the storm)")
++    print("   (first output can take 10-30s on WSL /mnt/c — imports are slow there)")
++    fake_stream = (
++        "i=0; while true; do "
++        "echo \"2024-01-01T00:00:00Z INFO api request ok $((i%7))ms\"; "
++        "i=$((i+1)); "
++        "if [ $i -eq 40 ]; then echo '2024-01-01T00:00:30Z FATAL db split-brain detected'; fi; "
++        "if [ $i -gt 50 ] && [ $i -lt 62 ]; then "
++        "echo '2024-01-01T00:00:40Z ERROR db connection refused host=db-1'; fi; "
++        "sleep 0.05; done")
++    import signal
++    import threading
++    import time
++
++    proc = subprocess.Popen(
++        [sys.executable, "-m", "loglens.interface.cli", "watch", fake_stream, "--quiet"],
++        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
++        errors="replace")
++
++    def watchdog():        # absolute last resort so the demo can't hang
++        time.sleep(120)
++        if proc.poll() is None:
++            proc.kill()
++
++    threading.Thread(target=watchdog, daemon=True).start()
++
++    lines, storm = [], 0
++    deadline = time.time() + 90
++    for line in proc.stdout:            # wait for REAL activity, not a timer
++        lines.append(line)
++        if "connection refused" in line:
++            storm += 1
++        if storm >= 5 or time.time() > deadline:
++            break
++    proc.send_signal(signal.SIGINT)     # = pressing Ctrl-C
++    try:
++        rest, _ = proc.communicate(timeout=30)
++    except subprocess.TimeoutExpired:
++        proc.kill()
++        rest, _ = proc.communicate()
++    out = "".join(lines) + (rest or "")
++    check("watch streamed anomalies live",
++          "FATAL" in out or "CRITICAL" in out)
++    check("watch caught the error storm", "connection refused" in out)
++    check("Ctrl-C produced a summary", "WATCH SUMMARY" in out)
++    print("\n--- watch output tail " + "-" * 30)
++    print("\n".join(out.splitlines()[-8:]))
++    print("-" * 52)
++
++    failed = [n for n, ok in RESULTS if not ok]
++    print(f"\n{'='*52}\n  {len(RESULTS) - len(failed)}/{len(RESULTS)} checks passed"
++          + (f"  — FAILED: {failed}" if failed else "  🎉") + f"\n{'='*52}")
++    sys.exit(1 if failed else 0)
++
++
++if __name__ == "__main__":
+     main()
+\ No newline at end of file
+diff --git a/src/loglens/__init__.py b/src/loglens/__init__.py
+index cf3d798..8f150eb 100644
+--- a/src/loglens/__init__.py
++++ b/src/loglens/__init__.py
+@@ -19,20 +19,20 @@ __all__ = [
+ ]
+ 
+ _LAZY = {
+-    "Anomaly": ("loglens.api", "Anomaly"),
+-    "AnalysisResult": ("loglens.api", "AnalysisResult"),
+-    "analyze": ("loglens.api", "analyze"),
+-    "analyze_async": ("loglens.api", "analyze_async"),
+-    "analyze_entries": ("loglens.api", "analyze_entries"),
+-    "LiveDetector": ("loglens.live", "LiveDetector"),
+-    "LogLensHandler": ("loglens.handler", "LogLensHandler"),
+-    "RunConfig": ("loglens.pipeline.run", "RunConfig"),
+-    "init": ("loglens.monitor", "init"),
+-    "Monitor": ("loglens.monitor", "Monitor"),
+-    "SlackAlerter": ("loglens.alerts", "SlackAlerter"),
+-    "TeamsAlerter": ("loglens.alerts", "TeamsAlerter"),
+-    "EmailAlerter": ("loglens.alerts", "EmailAlerter"),
+-    "AlertDispatcher": ("loglens.alerts", "AlertDispatcher"),
++    "Anomaly": ("loglens.application.api", "Anomaly"),
++    "AnalysisResult": ("loglens.application.api", "AnalysisResult"),
++    "analyze": ("loglens.application.api", "analyze"),
++    "analyze_async": ("loglens.application.api", "analyze_async"),
++    "analyze_entries": ("loglens.application.api", "analyze_entries"),
++    "LiveDetector": ("loglens.application.live", "LiveDetector"),
++    "LogLensHandler": ("loglens.interface.handler", "LogLensHandler"),
++    "RunConfig": ("loglens.detection.run", "RunConfig"),
++    "init": ("loglens.application.monitor", "init"),
++    "Monitor": ("loglens.application.monitor", "Monitor"),
++    "SlackAlerter": ("loglens.infrastructure.alerts", "SlackAlerter"),
++    "TeamsAlerter": ("loglens.infrastructure.alerts", "TeamsAlerter"),
++    "EmailAlerter": ("loglens.infrastructure.alerts", "EmailAlerter"),
++    "AlertDispatcher": ("loglens.infrastructure.alerts", "AlertDispatcher"),
+ }
+ 
+ 
+diff --git a/src/loglens/output/__init__.py b/src/loglens/application/__init__.py
+similarity index 100%
+copy from src/loglens/output/__init__.py
+copy to src/loglens/application/__init__.py
+diff --git a/src/loglens/api.py b/src/loglens/application/api.py
+similarity index 94%
+rename from src/loglens/api.py
+rename to src/loglens/application/api.py
+index 49a492a..67600ca 100644
+--- a/src/loglens/api.py
++++ b/src/loglens/application/api.py
+@@ -7,13 +7,13 @@ from typing import Any
+ 
+ import numpy as np
+ 
+-from loglens.llm import save_report
+-from loglens.models import Anomaly, LogEntry, _to_anomaly
+-from loglens.pipeline.detector import DetectionResult
+-from loglens.pipeline.ingestion import stream_command, stream_lines
+-from loglens.pipeline.parser import StreamParser
+-from loglens.pipeline.run import RunConfig, run
+-from loglens.reporting import ask_about_anomalies, html_for_anomalies, rca_for_anomalies
++from loglens.application.reporting import ask_about_anomalies, html_for_anomalies, rca_for_anomalies
++from loglens.detection.detector import DetectionResult
++from loglens.detection.ingestion import stream_command, stream_lines
++from loglens.detection.parser import StreamParser
++from loglens.detection.run import RunConfig, run
++from loglens.domain.models import Anomaly, LogEntry, _to_anomaly
++from loglens.infrastructure.llm import save_report
+ 
+ __all__ = [
+     "Anomaly",
+diff --git a/src/loglens/live.py b/src/loglens/application/live.py
+similarity index 93%
+rename from src/loglens/live.py
+rename to src/loglens/application/live.py
+index 8ae5a3d..23b77a0 100644
+--- a/src/loglens/live.py
++++ b/src/loglens/application/live.py
+@@ -4,13 +4,13 @@ import logging
+ import time
+ from collections import deque
+ 
+-from loglens.models import Anomaly, LogEntry, _to_anomaly
+-from loglens.pipeline.detector import HARD_FLAG_SEVERITY, get_severity
+-from loglens.pipeline.parser import StreamParser
+-from loglens.pipeline.run import RunConfig, run
+-from loglens.reporting import ask_about_anomalies, html_for_anomalies, rca_for_anomalies
++from loglens.application.reporting import ask_about_anomalies, html_for_anomalies, rca_for_anomalies
++from loglens.detection.detector import HARD_FLAG_SEVERITY, get_severity
++from loglens.detection.parser import StreamParser
++from loglens.detection.run import RunConfig, run
++from loglens.domain.models import Anomaly, LogEntry, _to_anomaly
+ 
+-logger = logging.getLogger("loglens.live")
++logger = logging.getLogger("loglens.application.live")
+ 
+ 
+ class LiveDetector:
+diff --git a/src/loglens/monitor.py b/src/loglens/application/monitor.py
+similarity index 94%
+rename from src/loglens/monitor.py
+rename to src/loglens/application/monitor.py
+index e93b3a8..28a186e 100644
+--- a/src/loglens/monitor.py
++++ b/src/loglens/application/monitor.py
+@@ -7,15 +7,15 @@ import sys
+ import threading
+ import traceback
+ 
+-from loglens.alerts import AlertDispatcher, alerters_from_env, load_dotenv
+-from loglens.handler import LogLensHandler
+-from loglens.llm import LLMConfig
+-from loglens.llm.client import LLMClient
+-from loglens.models import Anomaly, LogEntry
+-from loglens.pipeline.detector import get_severity
+-from loglens.redact import redact
+-
+-logger = logging.getLogger("loglens.monitor")
++from loglens.detection.detector import get_severity
++from loglens.domain.models import Anomaly, LogEntry
++from loglens.domain.redact import redact
++from loglens.infrastructure.alerts import AlertDispatcher, alerters_from_env, load_dotenv
++from loglens.infrastructure.llm import LLMConfig
++from loglens.infrastructure.llm.client import LLMClient
++from loglens.interface.handler import LogLensHandler
++
++logger = logging.getLogger("loglens.application.monitor")
+ 
+ 
+ def heuristic_rca_line(a: Anomaly) -> str:
+diff --git a/src/loglens/reporting.py b/src/loglens/application/reporting.py
+similarity index 91%
+rename from src/loglens/reporting.py
+rename to src/loglens/application/reporting.py
+index 8a9c5ac..b581cd4 100644
+--- a/src/loglens/reporting.py
++++ b/src/loglens/application/reporting.py
+@@ -1,8 +1,8 @@
+ from __future__ import annotations
+ 
+-from loglens.llm import LLMConfig, run_ask, run_rca
+-from loglens.models import Anomaly
+-from loglens.output.html_report import render_html_report
++from loglens.domain.models import Anomaly
++from loglens.infrastructure.llm import LLMConfig, run_ask, run_rca
++from loglens.infrastructure.output.html_report import render_html_report
+ 
+ 
+ def _llm_config(provider: str = "", model: str = "", api_key: str = "", config=None):
+diff --git a/src/loglens/pipeline/__init__.py b/src/loglens/detection/__init__.py
+similarity index 100%
+rename from src/loglens/pipeline/__init__.py
+rename to src/loglens/detection/__init__.py
+diff --git a/src/loglens/pipeline/benchmark.py b/src/loglens/detection/benchmark.py
+similarity index 97%
+rename from src/loglens/pipeline/benchmark.py
+rename to src/loglens/detection/benchmark.py
+index 289a8ac..3f1611c 100644
+--- a/src/loglens/pipeline/benchmark.py
++++ b/src/loglens/detection/benchmark.py
+@@ -12,14 +12,14 @@ from sklearn.ensemble import RandomForestClassifier
+ from sklearn.linear_model import LogisticRegression
+ from sklearn.model_selection import StratifiedKFold, train_test_split
+ 
+-from loglens.models import LogEntry
+-from loglens.pipeline.detector import (
++from loglens.detection.detector import (
+     DetectorConfig,
+     detect,
+     get_severity,
+ )
+-from loglens.pipeline.embeddings import EmbeddingEngine, features_cached
+-from loglens.pipeline.parser import detect_format, parse_line
++from loglens.detection.embeddings import EmbeddingEngine, features_cached
++from loglens.detection.parser import detect_format, parse_line
++from loglens.domain.models import LogEntry
+ 
+ 
+ @dataclass
+diff --git a/src/loglens/pipeline/cloud.py b/src/loglens/detection/cloud.py
+similarity index 98%
+rename from src/loglens/pipeline/cloud.py
+rename to src/loglens/detection/cloud.py
+index b0ab97b..0ea87b9 100644
+--- a/src/loglens/pipeline/cloud.py
++++ b/src/loglens/detection/cloud.py
+@@ -1,6 +1,6 @@
+ from __future__ import annotations
+ 
+-from loglens.models import LogEntry
++from loglens.domain.models import LogEntry
+ 
+ GCP_SEVERITY = {
+     "DEFAULT": "INFO",
+diff --git a/src/loglens/pipeline/deep_embeddings.py b/src/loglens/detection/deep_embeddings.py
+similarity index 96%
+rename from src/loglens/pipeline/deep_embeddings.py
+rename to src/loglens/detection/deep_embeddings.py
+index 7383091..f57af47 100644
+--- a/src/loglens/pipeline/deep_embeddings.py
++++ b/src/loglens/detection/deep_embeddings.py
+@@ -5,13 +5,13 @@ import threading
+ import numpy as np
+ from sklearn.feature_extraction.text import TfidfVectorizer
+ 
+-from loglens.models import LogEntry
+-from loglens.pipeline.embeddings import (
++from loglens.detection.embeddings import (
+     N_LOG_FEATURES,
+     _row_normalize,
+     extract_features,
+ )
+-from loglens.pipeline.synonyms import STOPWORDS, SynonymLearner, normalize_message
++from loglens.detection.synonyms import STOPWORDS, SynonymLearner, normalize_message
++from loglens.domain.models import LogEntry
+ 
+ _model = None
+ _model_lock = threading.Lock()
+diff --git a/src/loglens/pipeline/detector.py b/src/loglens/detection/detector.py
+similarity index 99%
+rename from src/loglens/pipeline/detector.py
+rename to src/loglens/detection/detector.py
+index 4ab596a..037149d 100644
+--- a/src/loglens/pipeline/detector.py
++++ b/src/loglens/detection/detector.py
+@@ -10,9 +10,9 @@ from sklearn.cluster import DBSCAN
+ from sklearn.neighbors import NearestNeighbors
+ from sklearn.preprocessing import normalize
+ 
+-from loglens.models import LogEntry
+-from loglens.pipeline.templates import TemplateRegistry, parse_timestamp
+-from loglens.severity import (  # noqa: F401
++from loglens.detection.templates import TemplateRegistry, parse_timestamp
++from loglens.domain.models import LogEntry
++from loglens.domain.severity import (  # noqa: F401
+     DEFAULT_SEVERITY,
+     HARD_FLAG_SEVERITY,
+     SEVERITY_BASE,
+diff --git a/src/loglens/pipeline/embeddings.py b/src/loglens/detection/embeddings.py
+similarity index 98%
+rename from src/loglens/pipeline/embeddings.py
+rename to src/loglens/detection/embeddings.py
+index 826892d..2cef449 100644
+--- a/src/loglens/pipeline/embeddings.py
++++ b/src/loglens/detection/embeddings.py
+@@ -5,12 +5,12 @@ import re
+ import numpy as np
+ from sklearn.feature_extraction.text import TfidfVectorizer
+ 
+-from loglens.models import LogEntry
+-from loglens.pipeline.synonyms import (
++from loglens.detection.synonyms import (
+     STOPWORDS,
+     SynonymLearner,
+     normalize_message,
+ )
++from loglens.domain.models import LogEntry
+ 
+ LEVEL_MAP = {
+     "EMERGENCY": 1.0,
+diff --git a/src/loglens/pipeline/filetype.py b/src/loglens/detection/filetype.py
+similarity index 100%
+rename from src/loglens/pipeline/filetype.py
+rename to src/loglens/detection/filetype.py
+diff --git a/src/loglens/pipeline/grouping.py b/src/loglens/detection/grouping.py
+similarity index 94%
+rename from src/loglens/pipeline/grouping.py
+rename to src/loglens/detection/grouping.py
+index 9b94777..5ae0b23 100644
+--- a/src/loglens/pipeline/grouping.py
++++ b/src/loglens/detection/grouping.py
+@@ -3,8 +3,8 @@ from __future__ import annotations
+ from collections.abc import Sequence
+ from dataclasses import dataclass, field
+ 
+-from loglens.models import LogEntry
+-from loglens.pipeline.templates import template_key
++from loglens.detection.templates import template_key
++from loglens.domain.models import LogEntry
+ 
+ 
+ def template_of(message: str) -> str:
+diff --git a/src/loglens/pipeline/ingestion/__init__.py b/src/loglens/detection/ingestion/__init__.py
+similarity index 100%
+rename from src/loglens/pipeline/ingestion/__init__.py
+rename to src/loglens/detection/ingestion/__init__.py
+diff --git a/src/loglens/pipeline/ingestion/command.py b/src/loglens/detection/ingestion/command.py
+similarity index 100%
+rename from src/loglens/pipeline/ingestion/command.py
+rename to src/loglens/detection/ingestion/command.py
+diff --git a/src/loglens/pipeline/ingestion/file.py b/src/loglens/detection/ingestion/file.py
+similarity index 100%
+rename from src/loglens/pipeline/ingestion/file.py
+rename to src/loglens/detection/ingestion/file.py
+diff --git a/src/loglens/pipeline/ingestion/http.py b/src/loglens/detection/ingestion/http.py
+similarity index 100%
+rename from src/loglens/pipeline/ingestion/http.py
+rename to src/loglens/detection/ingestion/http.py
+diff --git a/src/loglens/pipeline/ingestion/stdin.py b/src/loglens/detection/ingestion/stdin.py
+similarity index 100%
+rename from src/loglens/pipeline/ingestion/stdin.py
+rename to src/loglens/detection/ingestion/stdin.py
+diff --git a/src/loglens/pipeline/parser.py b/src/loglens/detection/parser.py
+similarity index 99%
+rename from src/loglens/pipeline/parser.py
+rename to src/loglens/detection/parser.py
+index b513a11..4018f88 100644
+--- a/src/loglens/pipeline/parser.py
++++ b/src/loglens/detection/parser.py
+@@ -5,8 +5,8 @@ import logging
+ import re
+ from collections.abc import Iterable, Iterator
+ 
+-from loglens.models import LogEntry
+-from loglens.pipeline.cloud import map_cloud_json
++from loglens.detection.cloud import map_cloud_json
++from loglens.domain.models import LogEntry
+ 
+ logger = logging.getLogger("loglens.parser")
+ 
+diff --git a/src/loglens/pipeline/run.py b/src/loglens/detection/run.py
+similarity index 81%
+rename from src/loglens/pipeline/run.py
+rename to src/loglens/detection/run.py
+index 9aa842b..a30eafe 100644
+--- a/src/loglens/pipeline/run.py
++++ b/src/loglens/detection/run.py
+@@ -1,64 +1,64 @@
+-from __future__ import annotations
+-
+-from collections.abc import Sequence
+-from dataclasses import dataclass
+-
+-import numpy as np
+-
+-from loglens.models import LogEntry
+-from loglens.pipeline.detector import (
+-    DetectionResult,
+-    DetectorConfig,
+-    detect,
+-)
+-from loglens.pipeline.embeddings import EmbeddingEngine
+-from loglens.pipeline.templates import TemplateRegistry
+-
+-
+-@dataclass
+-class RunConfig:
+-    mode: str = "fast"
+-    sensitivity: str = "normal"
+-    template_level: bool = True
+-    auto_threshold: bool = False
+-    threshold: float | None = None
+-    eps: float | None = None
+-    min_samples: int = 4
+-
+-
+-def _build_engine(mode: str):
+-    if mode == "deep":
+-        from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
+-
+-        return DeepEmbeddingEngine()
+-    return EmbeddingEngine()
+-
+-
+-def run(
+-    entries: Sequence[LogEntry], config: RunConfig | None = None, baseline: dict | None = None
+-) -> DetectionResult:
+-
+-    cfg = config or RunConfig()
+-    entries = list(entries)
+-    det_cfg = DetectorConfig.from_sensitivity(
+-        cfg.sensitivity,
+-        eps=cfg.eps,
+-        min_samples=cfg.min_samples,
+-    )
+-    det_cfg.auto_threshold = cfg.auto_threshold
+-    if cfg.threshold is not None:
+-        det_cfg.flag_threshold = float(cfg.threshold)
+-
+-    if not entries:
+-        return detect(entries, np.zeros((0, 1), dtype=np.float32), det_cfg, baseline=baseline)
+-
+-    engine = _build_engine(cfg.mode)
+-    engine.fit(entries)
+-
+-    if cfg.template_level and hasattr(engine, "embed_templates"):
+-        registry = TemplateRegistry(entries)
+-        embeddings = engine.embed_templates(entries, registry)
+-    else:
+-        embeddings = engine.embed(entries)
+-
+-    return detect(entries, embeddings, det_cfg, baseline=baseline)
++from __future__ import annotations
++
++from collections.abc import Sequence
++from dataclasses import dataclass
++
++import numpy as np
++
++from loglens.detection.detector import (
++    DetectionResult,
++    DetectorConfig,
++    detect,
++)
++from loglens.detection.embeddings import EmbeddingEngine
++from loglens.detection.templates import TemplateRegistry
++from loglens.domain.models import LogEntry
++
++
++@dataclass
++class RunConfig:
++    mode: str = "fast"
++    sensitivity: str = "normal"
++    template_level: bool = True
++    auto_threshold: bool = False
++    threshold: float | None = None
++    eps: float | None = None
++    min_samples: int = 4
++
++
++def _build_engine(mode: str):
++    if mode == "deep":
++        from loglens.detection.deep_embeddings import DeepEmbeddingEngine
++
++        return DeepEmbeddingEngine()
++    return EmbeddingEngine()
++
++
++def run(
++    entries: Sequence[LogEntry], config: RunConfig | None = None, baseline: dict | None = None
++) -> DetectionResult:
++
++    cfg = config or RunConfig()
++    entries = list(entries)
++    det_cfg = DetectorConfig.from_sensitivity(
++        cfg.sensitivity,
++        eps=cfg.eps,
++        min_samples=cfg.min_samples,
++    )
++    det_cfg.auto_threshold = cfg.auto_threshold
++    if cfg.threshold is not None:
++        det_cfg.flag_threshold = float(cfg.threshold)
++
++    if not entries:
++        return detect(entries, np.zeros((0, 1), dtype=np.float32), det_cfg, baseline=baseline)
++
++    engine = _build_engine(cfg.mode)
++    engine.fit(entries)
++
++    if cfg.template_level and hasattr(engine, "embed_templates"):
++        registry = TemplateRegistry(entries)
++        embeddings = engine.embed_templates(entries, registry)
++    else:
++        embeddings = engine.embed(entries)
++
++    return detect(entries, embeddings, det_cfg, baseline=baseline)
+diff --git a/src/loglens/pipeline/speedbench.py b/src/loglens/detection/speedbench.py
+similarity index 94%
+rename from src/loglens/pipeline/speedbench.py
+rename to src/loglens/detection/speedbench.py
+index db8e716..3692855 100644
+--- a/src/loglens/pipeline/speedbench.py
++++ b/src/loglens/detection/speedbench.py
+@@ -5,9 +5,9 @@ import time
+ from dataclasses import dataclass
+ from types import ModuleType
+ 
+-from loglens.pipeline.parser import detect_format, parse_line
+-from loglens.pipeline.run import RunConfig, run
+-from loglens.pipeline.turbo import scan_file
++from loglens.detection.parser import detect_format, parse_line
++from loglens.detection.run import RunConfig, run
++from loglens.detection.turbo import scan_file
+ 
+ # resource is Unix-only; guarded so Windows imports still work.
+ resource: ModuleType | None
+diff --git a/src/loglens/pipeline/synonyms.py b/src/loglens/detection/synonyms.py
+similarity index 100%
+rename from src/loglens/pipeline/synonyms.py
+rename to src/loglens/detection/synonyms.py
+diff --git a/src/loglens/pipeline/templates.py b/src/loglens/detection/templates.py
+similarity index 99%
+rename from src/loglens/pipeline/templates.py
+rename to src/loglens/detection/templates.py
+index a01b513..3cf5234 100644
+--- a/src/loglens/pipeline/templates.py
++++ b/src/loglens/detection/templates.py
+@@ -5,7 +5,7 @@ from collections.abc import Sequence
+ from dataclasses import dataclass, field
+ from datetime import datetime, timezone
+ 
+-from loglens.models import LogEntry
++from loglens.domain.models import LogEntry
+ 
+ _MASKS: list[tuple[re.Pattern, str]] = [
+     (
+diff --git a/src/loglens/pipeline/turbo.py b/src/loglens/detection/turbo.py
+similarity index 96%
+rename from src/loglens/pipeline/turbo.py
+rename to src/loglens/detection/turbo.py
+index 966cb16..61ee9b2 100644
+--- a/src/loglens/pipeline/turbo.py
++++ b/src/loglens/detection/turbo.py
+@@ -5,8 +5,8 @@ import math
+ import os
+ from dataclasses import dataclass
+ 
+-from loglens.pipeline.templates import template_key
+-from loglens.severity import TURBO_SEVERITY_DEFAULT, TURBO_SEVERITY_WEIGHT
++from loglens.detection.templates import template_key
++from loglens.domain.severity import TURBO_SEVERITY_DEFAULT, TURBO_SEVERITY_WEIGHT
+ 
+ logger = logging.getLogger("loglens.turbo")
+ 
+@@ -56,7 +56,7 @@ def split_chunks(path: str, n: int) -> list[tuple[int, int]]:
+ 
+ 
+ def _process_range(args) -> dict[tuple[str, str], list]:
+-    from loglens.pipeline.parser import detect_format, parse_line
++    from loglens.detection.parser import detect_format, parse_line
+ 
+     path, start, end = args
+     local: dict[tuple[str, str], list] = {}
+diff --git a/src/loglens/pipeline/worker.py b/src/loglens/detection/worker.py
+similarity index 97%
+rename from src/loglens/pipeline/worker.py
+rename to src/loglens/detection/worker.py
+index 6daf950..99fdb3a 100644
+--- a/src/loglens/pipeline/worker.py
++++ b/src/loglens/detection/worker.py
+@@ -6,7 +6,7 @@ from collections import Counter
+ from collections.abc import AsyncIterator, Callable
+ from concurrent.futures import Executor
+ 
+-from loglens.models import LogEntry
++from loglens.domain.models import LogEntry
+ 
+ logger = logging.getLogger("loglens.worker")
+ 
+diff --git a/src/loglens/output/__init__.py b/src/loglens/domain/__init__.py
+similarity index 100%
+copy from src/loglens/output/__init__.py
+copy to src/loglens/domain/__init__.py
+diff --git a/src/loglens/models.py b/src/loglens/domain/models.py
+similarity index 100%
+rename from src/loglens/models.py
+rename to src/loglens/domain/models.py
+diff --git a/src/loglens/redact.py b/src/loglens/domain/redact.py
+similarity index 100%
+rename from src/loglens/redact.py
+rename to src/loglens/domain/redact.py
+diff --git a/src/loglens/severity.py b/src/loglens/domain/severity.py
+similarity index 100%
+rename from src/loglens/severity.py
+rename to src/loglens/domain/severity.py
+diff --git a/src/loglens/output/__init__.py b/src/loglens/infrastructure/__init__.py
+similarity index 100%
+copy from src/loglens/output/__init__.py
+copy to src/loglens/infrastructure/__init__.py
+diff --git a/src/loglens/alerts.py b/src/loglens/infrastructure/alerts.py
+similarity index 97%
+rename from src/loglens/alerts.py
+rename to src/loglens/infrastructure/alerts.py
+index 0f7776a..6b43d9a 100644
+--- a/src/loglens/alerts.py
++++ b/src/loglens/infrastructure/alerts.py
+@@ -13,10 +13,10 @@ from pathlib import Path
+ from typing import Protocol, runtime_checkable
+ from urllib.parse import urlparse
+ 
+-from loglens.models import Anomaly
+-from loglens.severity import CARD_COLOR_DEFAULT, CARD_COLORS, EMOJI, EMOJI_DEFAULT
++from loglens.domain.models import Anomaly
++from loglens.domain.severity import CARD_COLOR_DEFAULT, CARD_COLORS, EMOJI, EMOJI_DEFAULT
+ 
+-logger = logging.getLogger("loglens.alerts")
++logger = logging.getLogger("loglens.infrastructure.alerts")
+ 
+ 
+ @runtime_checkable
+diff --git a/src/loglens/infrastructure/llm/__init__.py b/src/loglens/infrastructure/llm/__init__.py
+new file mode 100644
+index 0000000..2028dcc
+--- /dev/null
++++ b/src/loglens/infrastructure/llm/__init__.py
+@@ -0,0 +1,17 @@
++from loglens.infrastructure.llm.client import LLMClient
++from loglens.infrastructure.llm.config import AzureOptions, LLMConfig
++from loglens.infrastructure.llm.rca import RCAResult, run_ask, run_rca, save_report
++from loglens.infrastructure.llm.transport import LLMError, LLMResponse, TokenUsage
++
++__all__ = [
++    "LLMConfig",
++    "AzureOptions",
++    "LLMClient",
++    "LLMError",
++    "TokenUsage",
++    "LLMResponse",
++    "run_rca",
++    "run_ask",
++    "save_report",
++    "RCAResult",
++]
+diff --git a/src/loglens/llm/client.py b/src/loglens/infrastructure/llm/client.py
+similarity index 78%
+rename from src/loglens/llm/client.py
+rename to src/loglens/infrastructure/llm/client.py
+index 0b0d151..18e9b06 100644
+--- a/src/loglens/llm/client.py
++++ b/src/loglens/infrastructure/llm/client.py
+@@ -1,8 +1,8 @@
+ from __future__ import annotations
+ 
+-from loglens.llm.config import LLMConfig
+-from loglens.llm.providers import get_provider, parse_response
+-from loglens.llm.transport import HttpTransport, LLMResponse
++from loglens.infrastructure.llm.config import LLMConfig
++from loglens.infrastructure.llm.providers import get_provider, parse_response
++from loglens.infrastructure.llm.transport import HttpTransport, LLMResponse
+ 
+ 
+ class LLMClient:
+diff --git a/src/loglens/llm/config.py b/src/loglens/infrastructure/llm/config.py
+similarity index 97%
+rename from src/loglens/llm/config.py
+rename to src/loglens/infrastructure/llm/config.py
+index 088cade..0991980 100644
+--- a/src/loglens/llm/config.py
++++ b/src/loglens/infrastructure/llm/config.py
+@@ -3,7 +3,7 @@ from __future__ import annotations
+ import os
+ from dataclasses import dataclass, field
+ 
+-from loglens.llm.transport import LLMError
++from loglens.infrastructure.llm.transport import LLMError
+ 
+ DEFAULT_MODELS = {
+     "openai": "gpt-4o-mini",
+diff --git a/src/loglens/llm/providers.py b/src/loglens/infrastructure/llm/providers.py
+similarity index 96%
+rename from src/loglens/llm/providers.py
+rename to src/loglens/infrastructure/llm/providers.py
+index 8270223..9693c2f 100644
+--- a/src/loglens/llm/providers.py
++++ b/src/loglens/infrastructure/llm/providers.py
+@@ -2,8 +2,8 @@ from __future__ import annotations
+ 
+ from abc import ABC, abstractmethod
+ 
+-from loglens.llm.config import LLMConfig
+-from loglens.llm.transport import LLMError, TokenUsage
++from loglens.infrastructure.llm.config import LLMConfig
++from loglens.infrastructure.llm.transport import LLMError, TokenUsage
+ 
+ 
+ class LLMProvider(ABC):
+diff --git a/src/loglens/llm/rca.py b/src/loglens/infrastructure/llm/rca.py
+similarity index 95%
+rename from src/loglens/llm/rca.py
+rename to src/loglens/infrastructure/llm/rca.py
+index 27f5b8a..36036fa 100644
+--- a/src/loglens/llm/rca.py
++++ b/src/loglens/infrastructure/llm/rca.py
+@@ -3,11 +3,11 @@ from __future__ import annotations
+ from collections.abc import Sequence
+ from dataclasses import dataclass, field
+ 
+-from loglens.llm.client import LLMClient
+-from loglens.llm.config import LLMConfig
+-from loglens.llm.transport import TokenUsage
+-from loglens.models import LogEntry
+-from loglens.redact import redact
++from loglens.domain.models import LogEntry
++from loglens.domain.redact import redact
++from loglens.infrastructure.llm.client import LLMClient
++from loglens.infrastructure.llm.config import LLMConfig
++from loglens.infrastructure.llm.transport import TokenUsage
+ 
+ MAX_ANOMALY_LINES = 40
+ MAX_CONTEXT_LINES = 20
+diff --git a/src/loglens/llm/transport.py b/src/loglens/infrastructure/llm/transport.py
+similarity index 100%
+rename from src/loglens/llm/transport.py
+rename to src/loglens/infrastructure/llm/transport.py
+diff --git a/src/loglens/output/__init__.py b/src/loglens/infrastructure/output/__init__.py
+similarity index 100%
+copy from src/loglens/output/__init__.py
+copy to src/loglens/infrastructure/output/__init__.py
+diff --git a/src/loglens/output/html_report.py b/src/loglens/infrastructure/output/html_report.py
+similarity index 98%
+rename from src/loglens/output/html_report.py
+rename to src/loglens/infrastructure/output/html_report.py
+index 2747c2e..04e62e7 100644
+--- a/src/loglens/output/html_report.py
++++ b/src/loglens/infrastructure/output/html_report.py
+@@ -5,8 +5,8 @@ from collections import Counter
+ from collections.abc import Sequence
+ from datetime import datetime, timezone
+ 
+-from loglens.models import LogEntry
+-from loglens.severity import WEB_COLORS as LEVEL_COLORS  # noqa: F401  (re-export)
++from loglens.domain.models import LogEntry
++from loglens.domain.severity import WEB_COLORS as LEVEL_COLORS  # noqa: F401  (re-export)
+ 
+ 
+ def _esc(s) -> str:
+diff --git a/src/loglens/output/terminal.py b/src/loglens/infrastructure/output/terminal.py
+similarity index 100%
+rename from src/loglens/output/terminal.py
+rename to src/loglens/infrastructure/output/terminal.py
+diff --git a/src/loglens/output/__init__.py b/src/loglens/interface/__init__.py
+similarity index 100%
+rename from src/loglens/output/__init__.py
+rename to src/loglens/interface/__init__.py
+diff --git a/src/loglens/cli.py b/src/loglens/interface/cli.py
+similarity index 93%
+rename from src/loglens/cli.py
+rename to src/loglens/interface/cli.py
+index 192a556..ff70bb4 100644
+--- a/src/loglens/cli.py
++++ b/src/loglens/interface/cli.py
+@@ -9,35 +9,35 @@ from rich.panel import Panel
+ from rich.table import Table
+ 
+ from loglens import __version__
+-from loglens.models import LogEntry
+-from loglens.output.terminal import LiveProgress
+-from loglens.severity import (
++from loglens.domain.models import LogEntry
++from loglens.domain.severity import (
+     CATEGORY_ORDER,
+     RICH_STYLE_DEFAULT,
+     RICH_STYLES,
+     get_severity,
+ )
++from loglens.infrastructure.output.terminal import LiveProgress
+ 
+ if TYPE_CHECKING:
+     # These names are injected into module globals at runtime by _load() to keep
+     # CLI startup fast (heavy imports deferred). Declared here so type-checkers
+     # and IDEs can resolve them without importing at runtime.
+-    from loglens.live import LiveDetector
+-    from loglens.llm import LLMConfig, LLMError, run_ask, run_rca, save_report
+-    from loglens.output.html_report import render_html_report
+-    from loglens.pipeline.benchmark import (
++    from loglens.application.live import LiveDetector
++    from loglens.detection.benchmark import (
+         run_benchmark,
+     )
+-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
+-    from loglens.pipeline.detector import cluster_summary, detect_anomalies
+-    from loglens.pipeline.embeddings import EmbeddingEngine
+-    from loglens.pipeline.grouping import group_anomalies
+-    from loglens.pipeline.ingestion import AsyncCommandReader, CommandError, stream_lines
+-    from loglens.pipeline.parser import detect_format, parse_line
+-    from loglens.pipeline.speedbench import bench_file, to_markdown
+-    from loglens.pipeline.templates import TemplateRegistry
+-    from loglens.pipeline.turbo import scan_file as turbo_scan
+-    from loglens.pipeline.worker import run_worker_pool
++    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
++    from loglens.detection.detector import cluster_summary, detect_anomalies
++    from loglens.detection.embeddings import EmbeddingEngine
++    from loglens.detection.grouping import group_anomalies
++    from loglens.detection.ingestion import AsyncCommandReader, CommandError, stream_lines
++    from loglens.detection.parser import detect_format, parse_line
++    from loglens.detection.speedbench import bench_file, to_markdown
++    from loglens.detection.templates import TemplateRegistry
++    from loglens.detection.turbo import scan_file as turbo_scan
++    from loglens.detection.worker import run_worker_pool
++    from loglens.infrastructure.llm import LLMConfig, LLMError, run_ask, run_rca, save_report
++    from loglens.infrastructure.output.html_report import render_html_report
+ 
+ _LOADED = False
+ 
+@@ -47,32 +47,38 @@ def _load():
+     if _LOADED:
+         return
+     g = globals()
+-    from loglens.output.html_report import render_html_report  # noqa: F401
+-    from loglens.pipeline.benchmark import run_benchmark  # noqa: F401
+-    from loglens.pipeline.detector import (  # noqa: F401
++    from loglens.detection.benchmark import run_benchmark  # noqa: F401
++    from loglens.detection.detector import (  # noqa: F401
+         DetectorConfig,
+         cluster_summary,
+         detect_anomalies,
+     )
+-    from loglens.pipeline.embeddings import EmbeddingEngine  # noqa: F401
+-    from loglens.pipeline.grouping import group_anomalies  # noqa: F401
+-    from loglens.pipeline.ingestion import (  # noqa: F401
++    from loglens.detection.embeddings import EmbeddingEngine  # noqa: F401
++    from loglens.detection.grouping import group_anomalies  # noqa: F401
++    from loglens.detection.ingestion import (  # noqa: F401
+         AsyncCommandReader,
+         CommandError,
+         stream_lines,
+     )
+-    from loglens.pipeline.parser import detect_format, parse_line  # noqa: F401
+-    from loglens.pipeline.speedbench import bench_file, to_markdown  # noqa: F401
+-    from loglens.pipeline.templates import TemplateRegistry  # noqa: F401
+-    from loglens.pipeline.turbo import scan_file as turbo_scan  # noqa: F401
+-    from loglens.pipeline.worker import run_worker_pool  # noqa: F401
++    from loglens.detection.parser import detect_format, parse_line  # noqa: F401
++    from loglens.detection.speedbench import bench_file, to_markdown  # noqa: F401
++    from loglens.detection.templates import TemplateRegistry  # noqa: F401
++    from loglens.detection.turbo import scan_file as turbo_scan  # noqa: F401
++    from loglens.detection.worker import run_worker_pool  # noqa: F401
++    from loglens.infrastructure.output.html_report import render_html_report  # noqa: F401
+ 
+     try:
+-        from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine  # noqa: F401
++        from loglens.detection.deep_embeddings import DeepEmbeddingEngine  # noqa: F401
+     except ImportError:
+         DeepEmbeddingEngine = None
+-    from loglens.live import LiveDetector  # noqa: F401
+-    from loglens.llm import LLMConfig, LLMError, run_ask, run_rca, save_report  # noqa: F401
++    from loglens.application.live import LiveDetector  # noqa: F401
++    from loglens.infrastructure.llm import (  # noqa: F401
++        LLMConfig,
++        LLMError,
++        run_ask,
++        run_rca,
++        save_report,
++    )
+ 
+     for k, v in list(locals().items()):
+         if k != "g":
+@@ -265,7 +271,7 @@ def analyze(
+ ):
+     _load()
+ 
+-    from loglens.pipeline.filetype import InvalidSourceError, check_source
++    from loglens.detection.filetype import InvalidSourceError, check_source
+ 
+     try:
+         check_source(source)
+@@ -455,7 +461,7 @@ def analyze(
+         if model_path:
+             import numpy as _np
+ 
+-            from loglens.pipeline.benchmark import SupervisedHead, build_feature_matrix
++            from loglens.detection.benchmark import SupervisedHead, build_feature_matrix
+ 
+             try:
+                 head = SupervisedHead.load(model_path)
+@@ -814,7 +820,7 @@ def train(
+     ),
+ ):
+     """Train a supervised model on labeled logs, for use with `analyze --model`."""
+-    from loglens.pipeline.benchmark import cross_validate_supervised, load_labeled, train_and_save
++    from loglens.detection.benchmark import cross_validate_supervised, load_labeled, train_and_save
+ 
+     console.print(
+         f"\n[bold cyan][LogLens][/bold cyan] Training on: "
+diff --git a/src/loglens/handler.py b/src/loglens/interface/handler.py
+similarity index 93%
+rename from src/loglens/handler.py
+rename to src/loglens/interface/handler.py
+index 1f5ef7c..d9552b0 100644
+--- a/src/loglens/handler.py
++++ b/src/loglens/interface/handler.py
+@@ -5,11 +5,11 @@ import threading
+ from collections.abc import Callable
+ from datetime import datetime, timezone
+ 
+-from loglens.live import LiveDetector
+-from loglens.models import Anomaly, LogEntry
+-from loglens.severity import canonical_level
++from loglens.application.live import LiveDetector
++from loglens.domain.models import Anomaly, LogEntry
++from loglens.domain.severity import canonical_level
+ 
+-logger = logging.getLogger("loglens.handler")
++logger = logging.getLogger("loglens.interface.handler")
+ 
+ 
+ class LogLensHandler(logging.Handler):
+diff --git a/src/loglens/llm/__init__.py b/src/loglens/llm/__init__.py
+deleted file mode 100644
+index 4d92178..0000000
+--- a/src/loglens/llm/__init__.py
++++ /dev/null
+@@ -1,17 +0,0 @@
+-from loglens.llm.client import LLMClient
+-from loglens.llm.config import AzureOptions, LLMConfig
+-from loglens.llm.rca import RCAResult, run_ask, run_rca, save_report
+-from loglens.llm.transport import LLMError, LLMResponse, TokenUsage
+-
+-__all__ = [
+-    "LLMConfig",
+-    "AzureOptions",
+-    "LLMClient",
+-    "LLMError",
+-    "TokenUsage",
+-    "LLMResponse",
+-    "run_rca",
+-    "run_ask",
+-    "save_report",
+-    "RCAResult",
+-]
+diff --git a/tests/test_accuracy.py b/tests/test_accuracy.py
+index 507bbca..74d4e3e 100644
+--- a/tests/test_accuracy.py
++++ b/tests/test_accuracy.py
+@@ -7,9 +7,9 @@ from pathlib import Path
+ import numpy as np
+ import pytest
+ 
+-from loglens.models import LogEntry
+-from loglens.pipeline.embeddings import EmbeddingEngine
+-from loglens.pipeline.parser import detect_format, parse_line
++from loglens.detection.embeddings import EmbeddingEngine
++from loglens.detection.parser import detect_format, parse_line
++from loglens.domain.models import LogEntry
+ 
+ FIXTURE_LOG = Path("tests/fixtures/large_sample.log")
+ FIXTURE_LABELS = Path("tests/fixtures/large_sample_labels.json")
+@@ -136,7 +136,7 @@ def fast_vectors(fixture_data):
+ 
+ @pytest.fixture(scope="module")
+ def deep_vectors(fixture_data):
+-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
++    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
+ 
+     entries, labels = fixture_data
+     engine = DeepEmbeddingEngine()
+@@ -290,7 +290,7 @@ def test_fast_latency_per_log(fixture_data):
+ 
+ @skip_if_no_st
+ def test_deep_benchmark_small(fixture_data):
+-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
++    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
+ 
+     entries, _ = fixture_data
+     sample = entries[:100]
+@@ -304,7 +304,7 @@ def test_deep_benchmark_small(fixture_data):
+ 
+ @skip_if_no_st
+ def test_deep_benchmark_large(fixture_data):
+-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
++    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
+ 
+     entries, _ = fixture_data
+     sample = entries[:500]
+@@ -317,7 +317,7 @@ def test_deep_benchmark_large(fixture_data):
+ 
+ @skip_if_no_st
+ def test_fast_vs_deep_speed_comparison(fixture_data):
+-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
++    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
+ 
+     entries, _ = fixture_data
+     sample = entries[:200]
+diff --git a/tests/test_benchmark.py b/tests/test_benchmark.py
+index b2fe13c..761e795 100644
+--- a/tests/test_benchmark.py
++++ b/tests/test_benchmark.py
+@@ -2,8 +2,7 @@ import json
+ 
+ import numpy as np
+ 
+-from loglens.models import LogEntry
+-from loglens.pipeline.benchmark import (
++from loglens.detection.benchmark import (
+     build_feature_matrix,
+     evaluate,
+     grid_search,
+@@ -12,6 +11,7 @@ from loglens.pipeline.benchmark import (
+     score_prf1,
+     train_supervised,
+ )
++from loglens.domain.models import LogEntry
+ 
+ 
+ def _synthetic_corpus(n_normal: int = 60, n_anom: int = 20):
+diff --git a/tests/test_cli.py b/tests/test_cli.py
+index b777da5..428a8e3 100644
+--- a/tests/test_cli.py
++++ b/tests/test_cli.py
+@@ -3,7 +3,7 @@ import re
+ from typer.testing import CliRunner
+ 
+ from loglens import __version__
+-from loglens.cli import app
++from loglens.interface.cli import app
+ 
+ runner = CliRunner()
+ 
+diff --git a/tests/test_detector.py b/tests/test_detector.py
+index 102ff54..255eef6 100644
+--- a/tests/test_detector.py
++++ b/tests/test_detector.py
+@@ -1,7 +1,6 @@
+ import numpy as np
+ 
+-from loglens.models import LogEntry
+-from loglens.pipeline.detector import (
++from loglens.detection.detector import (
+     DetectorConfig,
+     cluster_summary,
+     detect,
+@@ -9,6 +8,7 @@ from loglens.pipeline.detector import (
+     get_severity,
+     otsu_threshold,
+ )
++from loglens.domain.models import LogEntry
+ 
+ # --- helpers ---
+ 
+diff --git a/tests/test_embeddings.py b/tests/test_embeddings.py
+index 80654be..320795b 100644
+--- a/tests/test_embeddings.py
++++ b/tests/test_embeddings.py
+@@ -1,14 +1,14 @@
+ import numpy as np
+ import pytest
+ 
+-from loglens.models import LogEntry
+-from loglens.pipeline.embeddings import EmbeddingEngine, extract_features
+-from loglens.pipeline.synonyms import (
++from loglens.detection.embeddings import EmbeddingEngine, extract_features
++from loglens.detection.synonyms import (
+     SynonymLearner,
+     detect_unknown_word,
+     normalize_message,
+     split_camel_case,
+ )
++from loglens.domain.models import LogEntry
+ 
+ # --- helpers ---
+ 
+@@ -250,7 +250,7 @@ skip_if_no_st = pytest.mark.skipif(
+ @skip_if_no_st
+ def test_deep_embed_returns_correct_shape():
+     """Deep mode should return (n, 430) = 384 semantic + 32 tfidf + 14 log features."""
+-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
++    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
+ 
+     engine = DeepEmbeddingEngine()
+     entries = [
+@@ -266,7 +266,7 @@ def test_deep_embed_returns_correct_shape():
+ @skip_if_no_st
+ def test_deep_similar_messages_are_close():
+     """Semantically similar messages should have high cosine similarity."""
+-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
++    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
+ 
+     engine = DeepEmbeddingEngine()
+     entries = [
+@@ -288,7 +288,7 @@ def test_deep_beats_tfidf_on_unseen_synonyms():
+     Deep mode should handle unseen synonyms better than TF-IDF.
+     'latency spike' vs 'slow response' — TF-IDF fails, deep succeeds.
+     """
+-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
++    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
+ 
+     engine = DeepEmbeddingEngine()
+     entries = [
+@@ -307,7 +307,7 @@ def test_deep_beats_tfidf_on_unseen_synonyms():
+ @skip_if_no_st
+ def test_deep_severity_separation():
+     """ERROR should be far from DEBUG even in deep mode."""
+-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
++    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
+ 
+     engine = DeepEmbeddingEngine()
+     entries = [
+@@ -326,7 +326,7 @@ def test_deep_severity_separation():
+ @skip_if_no_st
+ def test_deep_unit_vectors():
+     """All deep embeddings should be unit vectors (normalized)."""
+-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
++    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
+ 
+     engine = DeepEmbeddingEngine()
+     entries = [
+diff --git a/tests/test_filetype.py b/tests/test_filetype.py
+index a81710e..dc9b21e 100644
+--- a/tests/test_filetype.py
++++ b/tests/test_filetype.py
+@@ -1,6 +1,6 @@
+ import pytest
+ 
+-from loglens.pipeline.filetype import (
++from loglens.detection.filetype import (
+     InvalidSourceError,
+     _looks_binary,
+     check_source,
+diff --git a/tests/test_ingestion.py b/tests/test_ingestion.py
+index 9952f14..13ad649 100644
+--- a/tests/test_ingestion.py
++++ b/tests/test_ingestion.py
+@@ -4,10 +4,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
+ 
+ import pytest
+ 
+-from loglens.pipeline.ingestion import get_reader
+-from loglens.pipeline.ingestion.file import AsyncFileReader
+-from loglens.pipeline.ingestion.http import AsyncHTTPReader
+-from loglens.pipeline.ingestion.stdin import AsyncStdinReader
++from loglens.detection.ingestion import get_reader
++from loglens.detection.ingestion.file import AsyncFileReader
++from loglens.detection.ingestion.http import AsyncHTTPReader
++from loglens.detection.ingestion.stdin import AsyncStdinReader
+ 
+ 
+ def test_get_reader_returns_file_reader():
+@@ -58,7 +58,7 @@ async def test_http_reader_mocked():
+     mock_session.get.return_value.__aenter__ = AsyncMock(return_value=mock_response)
+     mock_session.get.return_value.__aexit__ = AsyncMock(return_value=False)
+ 
+-    with patch("loglens.pipeline.ingestion.http.aiohttp.ClientSession") as mock_cls:
++    with patch("loglens.detection.ingestion.http.aiohttp.ClientSession") as mock_cls:
+         mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+         mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+ 
+diff --git a/tests/test_llm.py b/tests/test_llm.py
+index c094701..8c67b70 100644
+--- a/tests/test_llm.py
++++ b/tests/test_llm.py
+@@ -8,11 +8,24 @@ from unittest import mock
+ 
+ import pytest
+ 
+-from loglens.llm import AzureOptions, LLMClient, LLMConfig, LLMError, LLMResponse, TokenUsage
+-from loglens.llm.providers import get_provider
+-from loglens.llm.rca import RCAResult, build_rca_context, run_ask, run_rca, save_report
+-from loglens.models import LogEntry
+-from loglens.output.html_report import render_html_report
++from loglens.domain.models import LogEntry
++from loglens.infrastructure.llm import (
++    AzureOptions,
++    LLMClient,
++    LLMConfig,
++    LLMError,
++    LLMResponse,
++    TokenUsage,
++)
++from loglens.infrastructure.llm.providers import get_provider
++from loglens.infrastructure.llm.rca import (
++    RCAResult,
++    build_rca_context,
++    run_ask,
++    run_rca,
++    save_report,
++)
++from loglens.infrastructure.output.html_report import render_html_report
+ 
+ 
+ def _fake_response(content="## Incident Summary\nAll good.", usage=None):
+diff --git a/tests/test_monitor.py b/tests/test_monitor.py
+index d5bde8a..82918f6 100644
+--- a/tests/test_monitor.py
++++ b/tests/test_monitor.py
+@@ -3,9 +3,9 @@ import sys
+ import time
+ 
+ import loglens
+-from loglens.alerts import AlertDispatcher, alerters_from_env
+-from loglens.api import Anomaly
+-from loglens.monitor import heuristic_rca_line
++from loglens.application.api import Anomaly
++from loglens.application.monitor import heuristic_rca_line
++from loglens.infrastructure.alerts import AlertDispatcher, alerters_from_env
+ 
+ 
+ class FakeChannel:
+diff --git a/tests/test_parser.py b/tests/test_parser.py
+index df50570..4c4dcf1 100644
+--- a/tests/test_parser.py
++++ b/tests/test_parser.py
+@@ -1,6 +1,6 @@
+ import pytest
+ 
+-from loglens.pipeline.parser import detect_format, infer_level, parse_line
++from loglens.detection.parser import detect_format, infer_level, parse_line
+ 
+ # --- original format tests ---
+ 
+diff --git a/tests/test_render_hygiene.py b/tests/test_render_hygiene.py
+index 7ea0a9c..d754d32 100644
+--- a/tests/test_render_hygiene.py
++++ b/tests/test_render_hygiene.py
+@@ -7,10 +7,10 @@ These tests make that class of defect impossible to reintroduce unnoticed.
+ 
+ import pathlib
+ 
+-from loglens.models import LogEntry
+-from loglens.output.html_report import render_html_report
+-from loglens.pipeline.grouping import template_of
+-from loglens.pipeline.turbo import mask_template
++from loglens.detection.grouping import template_of
++from loglens.detection.turbo import mask_template
++from loglens.domain.models import LogEntry
++from loglens.infrastructure.output.html_report import render_html_report
+ 
+ _INVISIBLE = ["​", "‌", "‍", "﻿"]
+ 
+diff --git a/tests/test_sdk.py b/tests/test_sdk.py
+index 7cc5afd..a3edd95 100644
+--- a/tests/test_sdk.py
++++ b/tests/test_sdk.py
+@@ -6,10 +6,10 @@ import sys
+ 
+ import pytest
+ 
+-import loglens.llm.rca as rca_mod
++import loglens.infrastructure.llm.rca as rca_mod
+ from loglens import LiveDetector, LogLensHandler, analyze, analyze_async
+-from loglens.llm import LLMResponse, TokenUsage
+-from loglens.pipeline.ingestion import AsyncCommandReader, CommandError
++from loglens.detection.ingestion import AsyncCommandReader, CommandError
++from loglens.infrastructure.llm import LLMResponse, TokenUsage
+ 
+ LINES = (
+     [f"2024-01-01T00:00:{i:02d}Z INFO api request completed {i % 7}ms" for i in range(40)]
+@@ -247,13 +247,13 @@ def test_watch_cli_html_report(fake_llm, tmp_path):
+             sys.executable,
+             "-c",
+             # patch the LLM inside the subprocess, then invoke the CLI
+-            "import loglens.llm.rca as m;\n"
+-            "from loglens.llm import TokenUsage, LLMResponse\n"
++            "import loglens.infrastructure.llm.rca as m;\n"
++            "from loglens.infrastructure.llm import TokenUsage, LLMResponse\n"
+             "class F:\n"
+             "  def __init__(s,c): pass\n"
+             "  def chat(s,msgs): return LLMResponse(content='Root cause: db pool exhausted.', usage=TokenUsage())\n"
+             "m.LLMClient=F\n"
+-            "import sys; from loglens.cli import app\n"
++            "import sys; from loglens.interface.cli import app\n"
+             f"sys.argv=['loglens','watch',"
+             f"\"printf 'INFO ok\\\\nFATAL db split-brain detected\\\\n"
+             f"ERROR db connection refused\\\\n'\","
+diff --git a/tests/test_security.py b/tests/test_security.py
+index 19ab4bc..4bfe4b2 100644
+--- a/tests/test_security.py
++++ b/tests/test_security.py
+@@ -2,9 +2,9 @@
+ 
+ import pytest
+ 
+-from loglens.alerts import SlackAlerter, validate_webhook_url
+-from loglens.llm.config import LLMConfig
+-from loglens.redact import redact
++from loglens.domain.redact import redact
++from loglens.infrastructure.alerts import SlackAlerter, validate_webhook_url
++from loglens.infrastructure.llm.config import LLMConfig
+ 
+ 
+ class TestRedaction:
+diff --git a/tests/test_train.py b/tests/test_train.py
+index 23e0713..f917c24 100644
+--- a/tests/test_train.py
++++ b/tests/test_train.py
+@@ -1,7 +1,7 @@
+ import numpy as np
+ 
+-from loglens.models import LogEntry
+-from loglens.pipeline.embeddings import EmbeddingEngine
++from loglens.detection.embeddings import EmbeddingEngine
++from loglens.domain.models import LogEntry
+ 
+ 
+ def test_embed_chunking_matches_single_pass():
+diff --git a/tests/test_worker.py b/tests/test_worker.py
+index 3f51558..a88e3ca 100644
+--- a/tests/test_worker.py
++++ b/tests/test_worker.py
+@@ -1,7 +1,7 @@
+ import pytest
+ 
+-from loglens.models import LogEntry
+-from loglens.pipeline.worker import run_worker_pool
++from loglens.detection.worker import run_worker_pool
++from loglens.domain.models import LogEntry
+ 
+ 
+ def make_entry(msg: str) -> LogEntry:
+-- 
+2.43.0
+

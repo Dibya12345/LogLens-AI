@@ -19,20 +19,20 @@ __all__ = [
 ]
 
 _LAZY = {
-    "Anomaly": ("loglens.api", "Anomaly"),
-    "AnalysisResult": ("loglens.api", "AnalysisResult"),
-    "analyze": ("loglens.api", "analyze"),
-    "analyze_async": ("loglens.api", "analyze_async"),
-    "analyze_entries": ("loglens.api", "analyze_entries"),
-    "LiveDetector": ("loglens.live", "LiveDetector"),
-    "LogLensHandler": ("loglens.handler", "LogLensHandler"),
-    "RunConfig": ("loglens.pipeline.run", "RunConfig"),
-    "init": ("loglens.monitor", "init"),
-    "Monitor": ("loglens.monitor", "Monitor"),
-    "SlackAlerter": ("loglens.alerts", "SlackAlerter"),
-    "TeamsAlerter": ("loglens.alerts", "TeamsAlerter"),
-    "EmailAlerter": ("loglens.alerts", "EmailAlerter"),
-    "AlertDispatcher": ("loglens.alerts", "AlertDispatcher"),
+    "Anomaly": ("loglens.application.api", "Anomaly"),
+    "AnalysisResult": ("loglens.application.api", "AnalysisResult"),
+    "analyze": ("loglens.application.api", "analyze"),
+    "analyze_async": ("loglens.application.api", "analyze_async"),
+    "analyze_entries": ("loglens.application.api", "analyze_entries"),
+    "LiveDetector": ("loglens.application.live", "LiveDetector"),
+    "LogLensHandler": ("loglens.interface.handler", "LogLensHandler"),
+    "RunConfig": ("loglens.detection.run", "RunConfig"),
+    "init": ("loglens.application.monitor", "init"),
+    "Monitor": ("loglens.application.monitor", "Monitor"),
+    "SlackAlerter": ("loglens.infrastructure.alerts", "SlackAlerter"),
+    "TeamsAlerter": ("loglens.infrastructure.alerts", "TeamsAlerter"),
+    "EmailAlerter": ("loglens.infrastructure.alerts", "EmailAlerter"),
+    "AlertDispatcher": ("loglens.infrastructure.alerts", "AlertDispatcher"),
 }
 
 

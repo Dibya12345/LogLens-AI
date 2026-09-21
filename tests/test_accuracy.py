@@ -7,9 +7,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from loglens.models import LogEntry
-from loglens.pipeline.embeddings import EmbeddingEngine
-from loglens.pipeline.parser import detect_format, parse_line
+from loglens.detection.embeddings import EmbeddingEngine
+from loglens.detection.parser import detect_format, parse_line
+from loglens.domain.models import LogEntry
 
 FIXTURE_LOG = Path("tests/fixtures/large_sample.log")
 FIXTURE_LABELS = Path("tests/fixtures/large_sample_labels.json")
@@ -136,7 +136,7 @@ def fast_vectors(fixture_data):
 
 @pytest.fixture(scope="module")
 def deep_vectors(fixture_data):
-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
+    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
 
     entries, labels = fixture_data
     engine = DeepEmbeddingEngine()
@@ -290,7 +290,7 @@ def test_fast_latency_per_log(fixture_data):
 
 @skip_if_no_st
 def test_deep_benchmark_small(fixture_data):
-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
+    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
 
     entries, _ = fixture_data
     sample = entries[:100]
@@ -304,7 +304,7 @@ def test_deep_benchmark_small(fixture_data):
 
 @skip_if_no_st
 def test_deep_benchmark_large(fixture_data):
-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
+    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
 
     entries, _ = fixture_data
     sample = entries[:500]
@@ -317,7 +317,7 @@ def test_deep_benchmark_large(fixture_data):
 
 @skip_if_no_st
 def test_fast_vs_deep_speed_comparison(fixture_data):
-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
+    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
 
     entries, _ = fixture_data
     sample = entries[:200]
