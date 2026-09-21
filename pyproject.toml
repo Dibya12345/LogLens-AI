@@ -106,6 +106,15 @@ no_implicit_optional = true
 ignore_missing_imports = true
 disable_error_code = ["import-untyped"]
 
+# numpy 2.x ships PEP 695 (`type X = ...`) stubs that mypy cannot parse when
+# targeting Python < 3.12 (this fails under a 3.12 CI runner). We don't rely on
+# deep numpy typing, so skip its stubs and treat numpy as untyped — keeps mypy
+# green on every supported Python version.
+[[tool.mypy.overrides]]
+module = ["numpy", "numpy.*"]
+follow_imports = "skip"
+follow_imports_for_stubs = true
+
 [tool.coverage.run]
 source = ["loglens"]
 omit = ["*/tests/*"]

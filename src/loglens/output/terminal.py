@@ -4,6 +4,7 @@ from rich.progress import (
     BarColumn,
     Progress,
     SpinnerColumn,
+    TaskID,
     TextColumn,
     TimeElapsedColumn,
 )
@@ -21,7 +22,7 @@ class LiveProgress:
             TimeElapsedColumn(),
             TextColumn("[yellow]{task.fields[speed]}[/yellow]"),
         )
-        self.task_id = None
+        self.task_id: TaskID | None = None
 
     def start(self):
         self.start_time = time.time()
@@ -29,6 +30,8 @@ class LiveProgress:
         self.task_id = self.progress.add_task("Processing...", total=self.total, speed="0 lines/s")
 
     def update(self, count: int):
+        if self.task_id is None:
+            return  # update() before start() is a no-op
         elapsed = time.time() - self.start_time
         speed = f"{count / elapsed:,.0f} lines/s" if elapsed > 0 else "0 lines/s"
         self.progress.update(self.task_id, completed=count, speed=speed)
