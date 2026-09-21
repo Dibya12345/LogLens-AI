@@ -32,8 +32,8 @@ jobs:
       - name: Generate test fixture (so accuracy tests run, not skip)
         run: python tests/fixtures/generate_logs.py
 
-      - name: Run test suite
-        run: pytest -q
+      - name: Run test suite (with coverage floor)
+        run: pytest -q --cov=loglens --cov-report=term-missing --cov-fail-under=65
 
       - name: Guard against silent skips
         run: |
@@ -98,14 +98,12 @@ jobs:
       - name: Import smoke test
         run: python -c "import loglens; from loglens.cli import app; print('import OK')"
 
-      - name: Lint (ruff, advisory)
-        continue-on-error: true
+      # Quality gates are now enforced (blocking). A violation fails the build.
+      - name: Lint (ruff)
         run: ruff check src/ tests/
 
-      - name: Format check (ruff, advisory)
-        continue-on-error: true
+      - name: Format check (ruff)
         run: ruff format --check src/ tests/
 
-      - name: Type check (mypy, advisory)
-        continue-on-error: true
+      - name: Type check (mypy)
         run: mypy src/loglens

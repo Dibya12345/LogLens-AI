@@ -172,7 +172,9 @@ async def analyze_async(
     if lines is not None:
         entries, detected = _parse(lines, fmt)
     else:
-        aiter = stream_command(cmd) if cmd is not None else stream_lines(source)
+        # _validate guarantees exactly one of source/lines/cmd is set; here
+        # lines is None, so if cmd is None then source is not.
+        aiter = stream_command(cmd) if cmd is not None else stream_lines(str(source))
         parser = StreamParser(fmt=fmt)
         entries = []
         async for line in aiter:
@@ -208,7 +210,7 @@ def analyze(
     if lines is not None:
         entries, detected = _parse(lines, fmt)
         return analyze_entries(entries, cfg, baseline, fmt or detected)
-    if cmd is None and not _needs_loop(source):
+    if cmd is None and source is not None and not _needs_loop(source):
         with open(source, encoding="utf-8", errors="replace") as f:
             entries, detected = _parse((ln.rstrip("\n") for ln in f), fmt)
         return analyze_entries(entries, cfg, baseline, fmt or detected)

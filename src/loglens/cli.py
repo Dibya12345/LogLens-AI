@@ -1,5 +1,6 @@
 import asyncio
 import functools
+from typing import TYPE_CHECKING, Any, cast
 
 import typer
 from rich.console import Console
@@ -16,6 +17,27 @@ from loglens.severity import (
     RICH_STYLES,
     get_severity,
 )
+
+if TYPE_CHECKING:
+    # These names are injected into module globals at runtime by _load() to keep
+    # CLI startup fast (heavy imports deferred). Declared here so type-checkers
+    # and IDEs can resolve them without importing at runtime.
+    from loglens.live import LiveDetector
+    from loglens.llm import LLMConfig, LLMError, run_ask, run_rca, save_report
+    from loglens.output.html_report import render_html_report
+    from loglens.pipeline.benchmark import (
+        run_benchmark,
+    )
+    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
+    from loglens.pipeline.detector import cluster_summary, detect_anomalies
+    from loglens.pipeline.embeddings import EmbeddingEngine
+    from loglens.pipeline.grouping import group_anomalies
+    from loglens.pipeline.ingestion import AsyncCommandReader, CommandError, stream_lines
+    from loglens.pipeline.parser import detect_format, parse_line
+    from loglens.pipeline.speedbench import bench_file, to_markdown
+    from loglens.pipeline.templates import TemplateRegistry
+    from loglens.pipeline.turbo import scan_file as turbo_scan
+    from loglens.pipeline.worker import run_worker_pool
 
 _LOADED = False
 
@@ -732,7 +754,10 @@ def benchmark(
     )
 
     with console.status("[cyan]Parsing, embedding, detecting...[/cyan]"):
-        out = run_benchmark(dataset, fmt=fmt, limit=limit, do_grid=grid, do_supervised=supervised)
+        out = cast(
+            "dict[str, Any]",
+            run_benchmark(dataset, fmt=fmt, limit=limit, do_grid=grid, do_supervised=supervised),
+        )
 
     if out.get("entries", 0) == 0:
         console.print("[bold red]No entries loaded — check path/format.[/bold red]")
@@ -812,7 +837,10 @@ def train(
 
     if not no_cv:
         with console.status("[cyan]Cross-validating (5-fold)...[/cyan]"):
-            cv = cross_validate_supervised(entries, labels, n_splits=5, model="rf")
+            cv = cast(
+                "dict[str, Any]",
+                cross_validate_supervised(entries, labels, n_splits=5, model="rf"),
+            )
         f1, pr, rc = cv["f1"], cv["precision"], cv["recall"]
         console.print(
             f"[bold cyan][LogLens][/bold cyan] Cross-validated: "
@@ -928,7 +956,7 @@ def watch(
 
     for a in det.flush():
         show(a)
-    s = det.summary()
+    s = cast("dict[str, Any]", det.summary())
     lvl = (
         ", ".join(f"{k}: {v}" for k, v in sorted(s["by_level"].items(), key=lambda kv: -kv[1]))
         or "none"

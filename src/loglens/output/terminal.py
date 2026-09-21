@@ -12,7 +12,7 @@ from rich.progress import (
 class LiveProgress:
     def __init__(self, total: int = 0):
         self.total = total
-        self.start_time = None
+        self.start_time: float = 0.0
         self.progress = Progress(
             SpinnerColumn(),
             TextColumn("[bold cyan]{task.description}"),

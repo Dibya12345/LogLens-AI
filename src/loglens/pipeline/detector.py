@@ -681,7 +681,7 @@ def detect(
 
     entry_labels = np.array([group_labels[registry.entry_group[i]] for i in range(n)])
 
-    meta = {
+    meta: dict[str, object] = {
         "eps": eps,
         "unique_templates": n_groups,
         "severe_share": severe_share,

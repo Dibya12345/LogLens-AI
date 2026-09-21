@@ -261,7 +261,7 @@ class AlertDispatcher:
                 self.sent += 1
         return ok
 
-    def stats(self) -> dict[str, int]:
+    def stats(self) -> dict[str, object]:
         return {
             "sent": self.sent,
             "suppressed": self.suppressed,

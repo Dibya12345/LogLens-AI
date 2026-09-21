@@ -2,16 +2,19 @@ from __future__ import annotations
 
 import sys
 import time
-
-try:
-    import resource
-except ImportError:
-    resource = None
 from dataclasses import dataclass
+from types import ModuleType
 
 from loglens.pipeline.parser import detect_format, parse_line
 from loglens.pipeline.run import RunConfig, run
 from loglens.pipeline.turbo import scan_file
+
+# resource is Unix-only; guarded so Windows imports still work.
+resource: ModuleType | None
+try:
+    import resource
+except ImportError:
+    resource = None
 
 
 @dataclass

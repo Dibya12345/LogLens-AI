@@ -13,7 +13,7 @@ _EOF = object()
 
 
 class CommandError(RuntimeError):
-    def __init__(self, cmd: str, returncode: int, stderr_tail: str = ""):
+    def __init__(self, cmd: str, returncode: int | None, stderr_tail: str = ""):
         self.cmd = cmd
         self.returncode = returncode
         self.stderr_tail = stderr_tail

@@ -25,15 +25,24 @@ living list; items graduate into the phased plan in `SYSTEM_DESIGN.md`.
   deferred (turbo is an approximation and the accuracy gate runs on the classic
   path).
 
-## Enforcement gates (Phase 5)
-- Flip **ruff** and **mypy** from advisory to **blocking** in CI.
-- **Type-hardening pass** to clear the ~42 advisory mypy findings.
-- **Coverage gate**: measure and set a floor (config exists; ~85% target).
+## Enforcement gates (Phase 5) — DONE
+- ✅ **ruff + mypy are now blocking** in CI (advisory `continue-on-error`
+  removed).
+- ✅ **Type-hardening complete** — `mypy src/loglens` is clean (0 errors), no
+  blanket ignores.
+- ✅ **Coverage gate** wired at `--cov-fail-under=65` (a ratchet). Raising the
+  floor toward **85%** still needs more tests (see below).
 
-## DevOps / supply chain
+## Test coverage
+- Raise coverage from ~69% toward **85%** and lift the CI floor accordingly.
+  The uncovered lines are concentrated in `cli.py`, `monitor.py`, deep-mode
+  paths, and turbo edge cases.
+
+## DevOps / supply chain (deferred by risk — need careful, verified changes)
 - `release.yml` pushes version bumps **directly to `main`** (bypasses branch
   protection) — move to a PR-based release.
-- **SHA-pin GitHub Actions** instead of floating major tags.
+- **SHA-pin GitHub Actions** instead of floating major tags (each pin needs the
+  exact upstream commit SHA verified, or a wrong pin breaks CI).
 - **PyPI trusted publishing (OIDC)** instead of a long-lived API token.
 - **Digest-pin Docker base images** for reproducible builds.
 

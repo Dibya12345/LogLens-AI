@@ -10,8 +10,9 @@ from loglens.pipeline.cloud import map_cloud_json
 
 logger = logging.getLogger("loglens.parser")
 
-PATTERNS = {
-    "JSON": None,  # handled separately
+# JSON is detected/parsed separately (see detect_format/parse_line), so it is
+# intentionally not in this regex table — keeping every value a real Pattern.
+PATTERNS: dict[str, re.Pattern[str]] = {
     "NGINX": re.compile(
         r'(?P<ip>\S+) - - \[(?P<time>[^\]]+)\] "(?P<method>\S+) (?P<path>\S+)[^"]*" (?P<status>\d+) (?P<bytes>\d+)'
     ),
@@ -399,6 +400,7 @@ class StreamParser:
         if self.forced_fmt:
             return self.forced_fmt
         if self._sticky_matches(line):
+            assert self.sticky is not None  # _sticky_matches is False when sticky is None
             return self.sticky
         detected = detect_format(line)
         if detected in ("PLAINTEXT", "UNKNOWN"):

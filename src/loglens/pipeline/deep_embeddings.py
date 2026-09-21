@@ -69,6 +69,7 @@ class DeepEmbeddingEngine:
 
         if self._learner is None:
             self.fit(entries)
+        assert self._learner is not None  # set by fit()
         synonyms = self._learner.get_all_synonyms()
         messages = [normalize_message(e.message, synonyms) for e in entries]
 

@@ -36,3 +36,8 @@ Thumbs.db
 
 benchmarks/*.log
 datasets/
+
+# coverage data
+.coverage
+.coverage.*
+htmlcov/

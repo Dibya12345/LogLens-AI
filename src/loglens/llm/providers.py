@@ -71,6 +71,7 @@ class AzureProvider(LLMProvider):
 
     def endpoint(self) -> str:
         az = self.config.azure
+        assert az is not None, "AzureProvider requires config.azure"
         return (
             f"{az.endpoint}/openai/deployments/{az.deployment}"
             f"/chat/completions?api-version={az.api_version}"
@@ -88,9 +89,10 @@ class AzureProvider(LLMProvider):
         if code == 401:
             return f"[azure] Invalid API key (401). {detail}"
         if code == 404:
+            deployment = self.config.azure.deployment if self.config.azure else "?"
             return (
                 f"[azure] 404 — check endpoint/deployment name "
-                f"('{self.config.azure.deployment}') and api-version. {detail}"
+                f"('{deployment}') and api-version. {detail}"
             )
         return None
 

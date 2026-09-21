@@ -107,14 +107,15 @@ def evaluate(
     labels: Sequence[int],
     cfg: DetectorConfig | None = None,
     feature_weight: float | None = None,
-    min_df: int | None = None,
+    min_df: float | None = None,
 ) -> tuple[Metrics, object]:
-    kwargs = {}
-    if feature_weight is not None:
-        kwargs["feature_weight"] = feature_weight
-    engine = EmbeddingEngine(**kwargs)
+    engine = (
+        EmbeddingEngine(feature_weight=feature_weight)
+        if feature_weight is not None
+        else EmbeddingEngine()
+    )
     if min_df is not None:
-        engine.vectorizer.set_params(min_df=min_df)
+        engine.vectorizer.set_params(min_df=int(min_df))
     vecs = engine.embed(list(entries))
     res = detect(list(entries), vecs, cfg or DetectorConfig())
     return score_prf1(labels, res.flagged), res
@@ -123,9 +124,9 @@ def evaluate(
 @dataclass
 class GridResult:
     best_f1: float
-    best_params: dict[str, float]
+    best_params: dict[str, float | None]
     best_metrics: Metrics
-    table: list[dict[str, float]] = field(default_factory=list)
+    table: list[dict[str, float | None]] = field(default_factory=list)
 
 
 DEFAULT_GRID = {
@@ -145,7 +146,7 @@ def grid_search(
     mdfs = grid.get("min_df", [None])
 
     best: GridResult | None = None
-    table: list[dict[str, float]] = []
+    table: list[dict[str, float | None]] = []
     for fw, th, mdf in itertools.product(fws, ths, mdfs):
         cfg = DetectorConfig(flag_threshold=th)
         m, _ = evaluate(entries, labels, cfg, feature_weight=fw, min_df=mdf)
