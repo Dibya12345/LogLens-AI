@@ -306,6 +306,21 @@ template for the rest of the codebase.
    swappable and testable.
 6. **Fail loud or fail logged** - never silent.
 
+**Enforced, not just documented.** The one-way dependency rule is a CI gate
+(`import-linter`, configured in `pyproject.toml` under `[tool.importlinter]`,
+run as the "architecture" step). The contract is:
+
+```
+interface  ->  application  ->  { detection | infrastructure }  ->  domain
+```
+
+`detection` and `infrastructure` are independent peers - neither may import the
+other. Any inward layer importing an outer one fails the build, so the layering
+cannot silently rot as the codebase grows. (This gate caught a real inversion:
+`application.monitor` imported `interface.handler`; `Monitor`/`init` and the
+logging `Handler` are both inbound entry points, so both now live in `interface`
+and `application` stays free of entry-point knowledge.)
+
 ### 4.2 Proposed package layout
 
 ```

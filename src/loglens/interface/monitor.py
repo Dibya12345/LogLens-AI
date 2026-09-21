@@ -15,7 +15,7 @@ from loglens.infrastructure.llm import LLMConfig
 from loglens.infrastructure.llm.client import LLMClient
 from loglens.interface.handler import LogLensHandler
 
-logger = logging.getLogger("loglens.application.monitor")
+logger = logging.getLogger("loglens.interface.monitor")
 
 
 def heuristic_rca_line(a: Anomaly) -> str:

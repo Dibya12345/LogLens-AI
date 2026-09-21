@@ -66,6 +66,7 @@ dev = [
     "anyio>=4.0.0",
     "ruff>=0.6",
     "mypy>=1.10",
+    "import-linter>=2.0",
 ]
 
 [project.scripts]
@@ -80,6 +81,25 @@ artifacts = ["src/loglens/assets/*.pkl"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+
+# Architectural fitness function: the layered dependency rule is enforced in CI,
+# not just documented. Dependencies point one way and inward:
+#   interface -> application -> {detection, infrastructure} -> domain
+# `detection` and `infrastructure` are independent peers (neither may import the
+# other). Any inward layer importing an outer one fails the build. See
+# `lint-imports` in the CI "architecture" step and docs/SYSTEM_DESIGN.md.
+[tool.importlinter]
+root_package = "loglens"
+
+[[tool.importlinter.contracts]]
+name = "Layered architecture (domain <- detection|infrastructure <- application <- interface)"
+type = "layers"
+layers = [
+    "loglens.interface",
+    "loglens.application",
+    "loglens.detection | loglens.infrastructure",
+    "loglens.domain",
+]
 
 [tool.ruff]
 line-length = 100
