@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="images/Logo.png" alt="LogLens AI" width="400">
+<img src="https://raw.githubusercontent.com/LoglensAI/LogLens-AI/main/images/Logo.png" alt="LogLens AI" width="400">
 
 **Detect anomalies by meaning. Explain why they matter. Group them into incidents. Monitor services in real time.**
 
