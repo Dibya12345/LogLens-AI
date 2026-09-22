@@ -3,10 +3,13 @@
 > **The self-hosted, AI-powered alternative to Splunk & Datadog for log anomaly detection.**
 > Finds real incidents by *meaning*, explains **why** in plain English, groups them into incident families, watches your containers live, and alerts you Sentry-style - **100% local, $0/GB, zero setup.**
 
-[![PyPI](https://img.shields.io/pypi/v/loglensai?color=3b82f6&label=pip%20install%20loglensai)](https://pypi.org/project/loglensai/)
+[![Docker pulls](https://img.shields.io/docker/pulls/loglensai/loglens?color=2496ed&logo=docker&logoColor=white&label=docker%20pulls)](https://hub.docker.com/r/loglensai/loglens)
+[![Image size](https://img.shields.io/docker/image-size/loglensai/loglens/latest?color=2496ed&logo=docker&logoColor=white&label=image)](https://hub.docker.com/r/loglensai/loglens)
+[![PyPI](https://img.shields.io/pypi/v/loglensai?color=3b82f6&logo=pypi&logoColor=white&label=pip%20install%20loglensai)](https://pypi.org/project/loglensai/)
+[![pip installs/month](https://img.shields.io/pypi/dm/loglensai?color=3b82f6&logo=pypi&logoColor=white&label=installs%2Fmonth)](https://pypi.org/project/loglensai/)
+[![GitHub stars](https://img.shields.io/github/stars/LoglensAI/LogLens-AI?logo=github&color=eac54f)](https://github.com/LoglensAI/LogLens-AI)
 [![License: MIT](https://img.shields.io/badge/License-MIT-3fb950.svg)](https://opensource.org/licenses/MIT)
-[![Website](https://img.shields.io/badge/web-loglensai.com-38bdf8)](https://loglensai.com)
-[![Multi-arch](https://img.shields.io/badge/arch-amd64%20%7C%20arm64-8957e5)](https://loglensai.com)
+[![Multi-arch](https://img.shields.io/badge/arch-amd64%20%7C%20arm64-8957e5?logo=docker&logoColor=white)](https://hub.docker.com/r/loglensai/loglens)
 
 ```bash
 docker run --rm -v "$PWD:/data" loglensai/loglens analyze --source app.log
@@ -47,6 +50,12 @@ Measured on real, labeled production logs (Loghub **BGL: 500,000 lines, 206,847 
 - 🎯 **Zero missed alerts** - 1.000 recall across all 206,847 incidents, every mode.
 - 🧪 **30/30 injected incidents caught** across 6 log formats - 100% recall, zero config.
 - 🛡️ **99.3% specificity** on 500k all-normal lines (no retuning) - it doesn't cry wolf.
+
+**Reproduce it yourself** - the harness ships in the image:
+
+```bash
+docker run --rm -v "$PWD:/data" loglensai/loglens benchmark BGL.log --format bgl --supervised
+```
 
 ---
 
@@ -133,7 +142,7 @@ LOGLENS_LLM_API_KEY
 
 | Tag | Contents | Best for |
 |-----|----------|----------|
-| `latest`, `0.3`, `0.3.3` | fast + turbo detection, live watch, alerts, SDK, ask, RCA, HTML reports | **most users** |
+| `latest`, `0.9`, `0.9.0` | fast + turbo detection, live watch, alerts, SDK, ask, RCA, HTML reports | **most users** |
 | `deep` | everything above **+ neural (transformer) semantic mode** for best precision | highest accuracy |
 
 Every image is **multi-architecture** - `linux/amd64` and `linux/arm64` (Apple Silicon, AWS Graviton, Raspberry Pi).
@@ -184,7 +193,7 @@ services:
 
 ## 🔗 Links & keywords
 
-**Website:** https://loglensai.com · **Docs:** https://loglensai.com/docs · **PyPI:** https://pypi.org/project/loglensai/ · **Source:** https://github.com/ParasRajput810/LogLens-AI
+**Website:** https://loglensai.com · **Docs:** https://loglensai.com/docs · **PyPI:** https://pypi.org/project/loglensai/ · **Source:** https://github.com/LoglensAI/LogLens-AI
 
 *log anomaly detection · AI log analysis · self-hosted log monitoring · Splunk alternative · Datadog alternative · open-source observability · root cause analysis · SRE / DevOps tooling · container log monitoring · Kubernetes log analysis · Sentry for logs · air-gapped log analytics · incident detection · MIT licensed*
 

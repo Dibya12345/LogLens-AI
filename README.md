@@ -9,14 +9,25 @@
   <a href="https://loglensai.com/docs">Documentation</a> ·
   <a href="https://loglensai.com">Website</a> ·
   <a href="https://hub.docker.com/r/loglensai/loglens">Docker Hub</a> ·
-  <a href="(docs/BENCHMARK.md)">Benchmarks</a>
+  <a href="docs/BENCHMARKS.md">Benchmarks</a>
 </p>
 
+<!-- Release & build -->
 <p>
-  <img src="https://img.shields.io/pypi/v/loglensai?label=PyPI&color=3b82f6&logo=pypi&logoColor=white" alt="PyPI version">
-  <img src="https://img.shields.io/pypi/pyversions/loglensai?color=3776ab&logo=python&logoColor=white" alt="Python versions">
-  <img src="https://img.shields.io/badge/Docker-amd64%20%7C%20arm64-2496ed?logo=docker&logoColor=white" alt="Docker">
-  <img src="https://img.shields.io/badge/License-MIT-3fb950.svg" alt="MIT License">
+  <a href="https://pypi.org/project/loglensai/"><img src="https://img.shields.io/pypi/v/loglensai?label=PyPI&color=3b82f6&logo=pypi&logoColor=white" alt="PyPI version"></a>
+  <a href="https://pypi.org/project/loglensai/"><img src="https://img.shields.io/pypi/pyversions/loglensai?color=3776ab&logo=python&logoColor=white" alt="Python versions"></a>
+  <a href="https://github.com/LoglensAI/LogLens-AI/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/LoglensAI/LogLens-AI/ci.yml?branch=main&label=CI&logo=githubactions&logoColor=white" alt="CI status"></a>
+  <a href="https://github.com/LoglensAI/LogLens-AI/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-3fb950.svg" alt="MIT License"></a>
+</p>
+
+<!-- Reach: downloads & impressions -->
+<p>
+  <a href="https://pypi.org/project/loglensai/"><img src="https://img.shields.io/pypi/dm/loglensai?label=pip%20installs%2Fmonth&color=3b82f6&logo=pypi&logoColor=white" alt="PyPI downloads per month"></a>
+  <a href="https://pepy.tech/project/loglensai"><img src="https://static.pepy.tech/badge/loglensai" alt="Total PyPI downloads"></a>
+  <a href="https://hub.docker.com/r/loglensai/loglens"><img src="https://img.shields.io/docker/pulls/loglensai/loglens?label=docker%20pulls&color=2496ed&logo=docker&logoColor=white" alt="Docker pulls"></a>
+  <a href="https://hub.docker.com/r/loglensai/loglens"><img src="https://img.shields.io/docker/image-size/loglensai/loglens/latest?label=image&color=2496ed&logo=docker&logoColor=white" alt="Docker image size"></a>
+  <a href="https://github.com/LoglensAI/LogLens-AI/stargazers"><img src="https://img.shields.io/github/stars/LoglensAI/LogLens-AI?logo=github&color=eac54f" alt="GitHub stars"></a>
+  <img src="https://visitor-badge.laobi.icu/badge?page_id=LoglensAI.LogLens-AI&label=views&color=8957e5" alt="Repository views">
 </p>
 
 </div>
@@ -358,7 +369,15 @@ The current benchmark evaluates 500,000 BGL log lines containing 206,847 labeled
 
 These figures are benchmark results on the specified dataset and configuration; they should not be interpreted as universal performance guarantees.
 
-The complete methodology and reproduction instructions are available in [BENCHMARK.md](docs/BENCHMARK.md).
+**Reproduce it yourself** (don't take our word for it):
+
+```bash
+loglens benchmark path/to/BGL.log --format bgl --supervised
+```
+
+On the bundled 2,000-line sample (`benchmarks/BGL_2k.log`), the supervised head scores **F1 0.932** (precision 0.902, recall 0.965) and the unsupervised path reaches **1.000 recall** — see [BENCHMARKS.md](docs/BENCHMARKS.md) for the full measured baseline (accuracy, throughput, memory).
+
+The complete methodology and reproduction instructions are available in [BENCHMARKS.md](docs/BENCHMARKS.md).
 
 ### Generalization Test
 
