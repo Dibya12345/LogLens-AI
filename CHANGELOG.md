@@ -3,6 +3,23 @@
 All notable changes to LogLens AI are documented here.
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## [0.11.0] - 2026-09-23
+
+### Bug Fixes
+- Fixed issue #3 (1db23af)
+
+### Chores
+- Bump version to 0.10.0 (fc6abb6)
+
+### Other
+- Add GitHub Action (analyze-action) + BrokenPipe fix (b204229)
+- Autofix trailing whitespace and newline (4315b95)
+- Unified scoring: correct scoring.py + normalized formatting (47262c5)
+- Unified scoring: correct scoring.py + normalized formatting (1346428)
+- Fix trailing-whitespace/newline lint from file transfer (78c5880)
+- Unify scoring across live/classic/turbo; de-saturated hard-flag; explainable output + progress (539c4f0)
+- Updated ReadMe.md (db7844f)
+
 ## [0.9.0] - 2026-09-22
 
 ### Bug Fixes
