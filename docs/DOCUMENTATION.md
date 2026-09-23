@@ -104,11 +104,43 @@ loglens analyze --source <PATH|URL|-> [OPTIONS]
 
 ### Modes
 
-- **fast** (default): from-scratch TF-IDF statistical detector.
-- **turbo** (`--turbo`): same accuracy, optimized throughput. Best for large files.
-- **deep** (`--deep`): transformer semantic embeddings, best precision.
+All three modes score anomalies through **one shared scoring policy**
+(`loglens.domain.scoring`), so scores are on the same 0–1 scale and every anomaly
+carries the same kind of plain-English `↳ why:` explanation. What differs between
+modes is **which signals each one gathers** - richer signals cost more time:
 
-> `--turbo` and `--deep` are mutually meaningful -pick one. If neither is set, fast mode runs.
+| Mode | Flag | Signals it gathers | Speed | Best for |
+|------|------|--------------------|-------|----------|
+| **fast** | *(default)* | TF-IDF clustering + timing bursts + severity + keywords | fast | most files |
+| **turbo** | `--turbo` | template frequency + severity + keywords (skips embeddings & timing) | fastest | huge files |
+| **deep** | `--deep` | neural (transformer) embeddings + clustering + timing + severity + keywords | slowest | best precision |
+
+Pick one of `--turbo` / `--deep`; with neither, **fast** runs. The mode header in
+the output names the exact signal set it used.
+
+#### Supervised vs. unsupervised (why mode counts can differ)
+
+There are **two decision layers**, and this is the usual reason two modes report
+different anomaly counts on the same file:
+
+- **fast** and **deep** apply the **bundled supervised model** by default (a
+  RandomForest trained on infra logs) on top of the unsupervised score. It's more
+  conservative and tends to flag fewer, higher-confidence anomalies. Pass
+  `--no-model` to skip it and see the raw unsupervised policy, or `--model my.pkl`
+  to use your own (`loglens train`).
+- **turbo** is **always unsupervised** - a fast count-based scan that never loads
+  the model.
+
+So `analyze app.log` (supervised) and `analyze app.log --turbo` (unsupervised)
+answering slightly differently is **expected, not a bug**. To compare like for
+like, run `analyze app.log --no-model` against `analyze app.log --turbo` - both
+are then the unsupervised policy and their scores line up. Drop `--turbo` for the
+supervised model's verdict.
+
+> **Note on line counts:** every mode reports the **parsed** line count (lines that
+> became analysable entries). fast/deep also show the raw read count
+> (`Lines: 59 read → 57 parsed`); turbo reports the parsed count directly. Blank and
+> unparseable lines are dropped, so parsed ≤ read.
 
 ### Examples
 

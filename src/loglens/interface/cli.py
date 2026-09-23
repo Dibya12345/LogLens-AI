@@ -285,7 +285,8 @@ def analyze(
             console.print(f"\n[bold cyan][LogLens][/bold cyan] Source: [yellow]{source}[/yellow]")
             console.print(
                 "[bold cyan][LogLens][/bold cyan] Mode: [bold magenta]⚡ Turbo (parallel scan)[/bold magenta] "
-                "[dim]— signals: template frequency + severity + keywords (skips embeddings & timing)[/dim]"
+                "[dim]— unsupervised; signals: frequency + severity + keywords "
+                "(skips embeddings, timing & the model)[/dim]"
             )
             loop = asyncio.get_running_loop()
             with console.status("[bold magenta]⚡ Turbo scanning…[/bold magenta]", spinner="dots"):
@@ -295,7 +296,8 @@ def analyze(
                 )
             console.print(f"[bold cyan][LogLens][/bold cyan] Workers: [bold]{res.workers}[/bold]")
             console.print(
-                f"[bold cyan][LogLens][/bold cyan] Parsed lines: [bold]{res.parsed_lines:,}[/bold]"
+                f"[bold cyan][LogLens][/bold cyan] Lines: [bold]{res.parsed_lines:,}[/bold] parsed "
+                "[dim](turbo counts parsed lines directly)[/dim]"
             )
             console.print(
                 f"[bold cyan][LogLens][/bold cyan] Unique templates: [bold]{len(res.templates):,}[/bold]  "
@@ -313,6 +315,10 @@ def analyze(
             console.print(
                 f"[bold cyan][LogLens][/bold cyan] Anomalies: "
                 f"[bold red]{len(anomalies):,}[/bold red] 🚨{incident_flag}"
+            )
+            console.print(
+                "[dim]      (turbo is a fast unsupervised scan — counts differ from the "
+                "default supervised model by design; drop --turbo for the model's verdict)[/dim]"
             )
 
             display = anomalies[:limit]
@@ -391,7 +397,8 @@ def analyze(
                 entries.append(entry)
 
         console.print(
-            f"[bold cyan][LogLens][/bold cyan] Lines ingested: [bold]{line_count:,}[/bold]"
+            f"[bold cyan][LogLens][/bold cyan] Lines: [bold]{line_count:,}[/bold] read "
+            f"→ [bold]{len(entries):,}[/bold] parsed"
         )
 
         if dry_run:
