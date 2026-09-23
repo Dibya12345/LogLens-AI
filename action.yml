@@ -1,0 +1,52 @@
+name: "LogLens AI"
+description: "Detect and explain anomalies in your CI/CD logs, and fail the build on real incidents. Local & open-source."
+author: "LogLens AI"
+branding:
+  icon: "search"
+  color: "blue"
+
+inputs:
+  source:
+    description: "Path to the log file to analyze (e.g. build.log)."
+    required: true
+  fail-on:
+    description: "Fail the job if an anomaly is this severity or worse: critical | error | warning | fatal | any. Empty = report only, never fail."
+    required: false
+    default: ""
+  mode:
+    description: "Detection mode: fast | turbo | deep."
+    required: false
+    default: "fast"
+  version:
+    description: "loglensai version to install (e.g. 0.10.0). Empty = latest on PyPI."
+    required: false
+    default: ""
+  python-version:
+    description: "Python version to run on."
+    required: false
+    default: "3.12"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install LogLens AI
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.version }}" ]; then
+          pip install "loglensai==${{ inputs.version }}"
+        else
+          pip install loglensai
+        fi
+
+    - name: Analyze logs
+      shell: bash
+      run: |
+        python "${{ github.action_path }}/ci/gh_analyze.py" \
+          --source "${{ inputs.source }}" \
+          --mode "${{ inputs.mode }}" \
+          --fail-on "${{ inputs.fail-on }}"

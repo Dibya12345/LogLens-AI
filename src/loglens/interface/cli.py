@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import json
 from typing import TYPE_CHECKING, Any, cast
 
 import typer
@@ -17,6 +18,13 @@ from loglens.domain.severity import (
     get_severity,
 )
 from loglens.infrastructure.output.terminal import LiveProgress
+
+try:
+    import signal
+
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+except (ImportError, AttributeError, ValueError):
+    pass
 
 if TYPE_CHECKING:
     # These names are injected into module globals at runtime by _load() to keep
@@ -95,6 +103,64 @@ app = typer.Typer(
 console = Console()
 
 INFO_KEYWORDS = {"error", "fail", "timeout", "refused", "crash", "panic", "oom", "kill"}
+
+_FAIL_ON_RANK = {
+    "emergency": 0,
+    "fatal": 1,
+    "alert": 1,
+    "critical": 2,
+    "error": 3,
+    "warning": 4,
+    "warn": 4,
+    "any": 99,  # any anomaly at all
+}
+
+
+def _emit_json(
+    source: str,
+    mode: str,
+    lines_read: int | None,
+    lines_parsed: int,
+    incident: bool,
+    items: list[dict[str, Any]],
+) -> None:
+    payload = {
+        "version": __version__,
+        "source": source,
+        "mode": mode,
+        "lines_read": lines_read,
+        "lines_parsed": lines_parsed,
+        "incident": incident,
+        "anomaly_count": len(items),
+        "anomalies": items,
+    }
+    print(json.dumps(payload, indent=2))
+
+
+def _apply_fail_on(fail_on: str, items: list[dict[str, Any]]) -> None:
+
+    key = (fail_on or "").strip().lower()
+    if not key or key == "none":
+        return
+    from loglens.domain.severity import get_severity
+
+    threshold = _FAIL_ON_RANK.get(key)
+    if threshold is None:
+        console.print(
+            f"[yellow][LogLens][/yellow] Unknown --fail-on '{fail_on}' "
+            f"(use: {', '.join(sorted(_FAIL_ON_RANK))}). Not gating."
+        )
+        return
+    if key == "any":
+        tripped = len(items) > 0
+        worst = "any anomaly"
+    else:
+        breaching = [it for it in items if get_severity(str(it.get("level", ""))) <= threshold]
+        tripped = len(breaching) > 0
+        worst = f"{len(breaching)} anomaly(ies) at or above {key.upper()}"
+    if tripped:
+        console.print(f"[bold red][LogLens][/bold red] fail-on tripped: {worst} 🚨", style="red")
+        raise typer.Exit(code=2)
 
 
 def _level_color(lvl: str) -> str:
@@ -268,8 +334,22 @@ def analyze(
         "--html",
         help="Save a standalone HTML report (e.g. report.html). Includes RCA if --rca is set.",
     ),
+    output_format: str = typer.Option(
+        "terminal",
+        "--format",
+        help="Output format: terminal (default) | json. Use json for CI/CD (machine-readable).",
+    ),
+    fail_on: str = typer.Option(
+        "",
+        "--fail-on",
+        help="Exit non-zero (code 2) if any anomaly is this severity or worse: "
+        "critical | error | warning | fatal | any. For gating CI/CD builds.",
+    ),
 ):
     _load()
+    as_json = output_format.strip().lower() == "json"
+    if as_json:
+        console.quiet = True
 
     from loglens.detection.filetype import InvalidSourceError, check_source
 
@@ -374,6 +454,21 @@ def analyze(
                     html_out, source, res.parsed_lines, rca_entries, rca_result, scores=turbo_scores
                 )
 
+            turbo_items = [
+                {
+                    "level": a.level,
+                    "service": a.service,
+                    "score": a.score,
+                    "count": a.count,
+                    "message": a.sample,
+                    "reasons": a.reasons,
+                }
+                for a in anomalies
+            ]
+            turbo_incident = bool(res.parsed_lines and severe / res.parsed_lines >= 0.30)
+            if as_json:
+                _emit_json(source, "turbo", None, res.parsed_lines, turbo_incident, turbo_items)
+            _apply_fail_on(fail_on, turbo_items)
             return  # turbo done — skip the classic pipeline
 
         line_count = 0
@@ -438,7 +533,7 @@ def analyze(
                 vectors = engine.embed_templates(entries, registry)
         else:
             # Large inputs embed in chunks — show a live bar so it never looks hung.
-            if len(entries) > 50_000:
+            if len(entries) > 50_000 and not as_json:
                 emb_prog = LiveProgress(total=len(entries))
                 emb_prog.start()
                 try:
@@ -578,9 +673,11 @@ def analyze(
         def process_fn(entry):
             nonlocal processed_count
             processed_count += 1
-            progress.update(processed_count)
+            if not as_json:
+                progress.update(processed_count)
 
-        progress.start()
+        if not as_json:
+            progress.start()
 
         async def entry_stream():
             for e in entries:
@@ -592,7 +689,8 @@ def analyze(
             num_workers=workers,
         )
 
-        progress.stop()
+        if not as_json:
+            progress.stop()
 
         console.print(
             f"\n[bold cyan][LogLens][/bold cyan] Processed: [bold green]{stats['processed']:,}[/bold green]"
@@ -671,6 +769,28 @@ def analyze(
             _write_html(
                 html_out, source, len(entries), filtered_anomalies, rca_result, scores=entry_scores
             )
+
+        classic_items = [
+            {
+                "level": g.level,
+                "service": g.service,
+                "score": round(g.max_score, 4),
+                "count": g.count,
+                "message": g.sample,
+                "reasons": list(getattr(g, "reasons", []) or []),
+            }
+            for g in groups
+        ]
+        if as_json:
+            _emit_json(
+                source,
+                "deep" if deep else "fast",
+                line_count,
+                len(entries),
+                bool(incident_flag),
+                classic_items,
+            )
+        _apply_fail_on(fail_on, classic_items)
 
         if verbose and sample_entry:
             table = Table(title="Sample Parsed Entry")

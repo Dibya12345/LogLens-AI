@@ -1,4 +1,4 @@
-# LogLens AI — Backlog
+# LogLens AI - Backlog
 
 Tracked work that is deliberately deferred, with the rationale. This is a
 living list; items graduate into the phased plan in `SYSTEM_DESIGN.md`.
@@ -25,10 +25,10 @@ living list; items graduate into the phased plan in `SYSTEM_DESIGN.md`.
   deferred (turbo is an approximation and the accuracy gate runs on the classic
   path).
 
-## Enforcement gates (Phase 5) — DONE
+## Enforcement gates (Phase 5) - DONE
 - ✅ **ruff + mypy are now blocking** in CI (advisory `continue-on-error`
   removed).
-- ✅ **Type-hardening complete** — `mypy src/loglens` is clean (0 errors), no
+- ✅ **Type-hardening complete** - `mypy src/loglens` is clean (0 errors), no
   blanket ignores.
 - ✅ **Coverage gate** wired at `--cov-fail-under=65` (a ratchet). Raising the
   floor toward **85%** still needs more tests (see below).
@@ -38,9 +38,9 @@ living list; items graduate into the phased plan in `SYSTEM_DESIGN.md`.
   The uncovered lines are concentrated in `cli.py`, `monitor.py`, deep-mode
   paths, and turbo edge cases.
 
-## DevOps / supply chain (deferred by risk — need careful, verified changes)
+## DevOps / supply chain (deferred by risk - need careful, verified changes)
 - `release.yml` pushes version bumps **directly to `main`** (bypasses branch
-  protection) — move to a PR-based release.
+  protection) - move to a PR-based release.
 - **SHA-pin GitHub Actions** instead of floating major tags (each pin needs the
   exact upstream commit SHA verified, or a wrong pin breaks CI).
 - **PyPI trusted publishing (OIDC)** instead of a long-lived API token.
@@ -49,3 +49,31 @@ living list; items graduate into the phased plan in `SYSTEM_DESIGN.md`.
 ## Runtime / polish
 - Provide `python -m loglens` (`__main__.py`).
 - Remove the `hello` vanity CLI command.
+
+## CI/CD integration (new track)
+
+Position LogLens as a pipeline step that surfaces the incident in CI logs.
+
+**Foundations**
+- ✅ **`--format json`** - machine-readable anomaly output (classic + turbo).
+- ✅ **`--fail-on <level>`** - non-zero exit (code 2) to gate builds
+  (`critical | error | warning | fatal | any`).
+- **`.gz`/compressed ingestion** - CI log artifacts are usually gzipped.
+
+**GitHub Action** (the viral, discoverable piece)
+- `loglensai/analyze-action` on the Marketplace.
+- Job summary (`$GITHUB_STEP_SUMMARY`) - incident table in the Actions UI.
+- Inline annotations (`::error file=,line=::`) - failing lines in the PR diff.
+- PR comment with the incident summary; build gating via exit code.
+
+**Universal CI formats**
+- JUnit XML (`--format junit`) - renders in GitLab / Jenkins / CircleCI / Azure.
+- SARIF (`--format sarif`) - GitHub Security / code-scanning tab.
+
+**Noise control (makes it keep-on-able)**
+- Baseline/regression mode (`--baseline good.log`) - flag only *new* anomalies.
+- `.loglens.yml` config - fail thresholds, ignore paths, baseline location.
+
+**Ergonomics / CD**
+- Streaming gate: `cmd | loglens analyze --source - --fail-on error`.
+- Post-deploy `watch` → rollback signal; Slack/Teams alert on red build.
