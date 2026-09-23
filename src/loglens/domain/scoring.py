@@ -98,15 +98,14 @@ def has_catastrophe(message: str) -> bool:
 def has_failure(message: str) -> bool:
     return bool(_FAILURE_RE.search(message))
 
+
 @dataclass(frozen=True)
 class Reason:
-
-
     code: str
     text: str
     weight: float = 0.0
 
-    def __str__(self) -> str:  
+    def __str__(self) -> str:
         return self.text
 
 
@@ -132,7 +131,6 @@ REASON_CODES = (
 
 @dataclass
 class Signals:
-
     level: str
     message: str = ""
 
@@ -140,8 +138,8 @@ class Signals:
     level_total: int = 1
     file_total: int = 1
 
-    has_clusters: bool = False  
-    cluster_label: int = 0 
+    has_clusters: bool = False
+    cluster_label: int = 0
     cluster_size: float = 0.0
     rare_min: int = 3
     rare_pct: float = 0.01
@@ -164,7 +162,7 @@ class Signals:
     is_surge: bool = False
 
     chronic: bool = False
-    history_routine: float = 0.0  
+    history_routine: float = 0.0
     group_span_ok: bool = False
 
     confidence: float = 1.0
