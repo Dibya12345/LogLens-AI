@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
@@ -12,6 +11,13 @@ from sklearn.preprocessing import normalize
 
 from loglens.detection.templates import TemplateRegistry, parse_timestamp
 from loglens.domain.models import LogEntry
+from loglens.domain.scoring import (
+    HISTORY_HEAD,
+    Signals,
+    soft_cap,  # noqa: F401  (re-exported for callers/tests)
+    volume_confidence,
+)
+from loglens.domain.scoring import score as policy_score
 from loglens.domain.severity import (  # noqa: F401
     DEFAULT_SEVERITY,
     HARD_FLAG_SEVERITY,
@@ -19,88 +25,13 @@ from loglens.domain.severity import (  # noqa: F401
     get_severity,
 )
 
+# Signal-computation thresholds — these decide *whether* a signal fires. The
+# scoring weights and soft-cap themselves live in loglens.domain.scoring, which
+# is the single scoring policy every mode shares.
 CHRONIC_SHARE = 0.15
 CHRONIC_MIN_COUNT = 25
 CHRONIC_SPREAD = 0.50
-CHRONIC_DAMP = 0.45
-
 GLOBAL_RARE_SHARE = 0.005
-GLOBAL_RARE_BONUS = 0.18
-OUTLIER_Z_EXEMPT = 4.0
-OUTLIER_DIST_FLOOR = 0.08
-
-SOFTCAP_START = 0.80
-SOFTCAP_TAU = 0.60
-
-
-HISTORY_HEAD = 0.25
-HISTORY_MIN_COUNT = 5
-HISTORY_MIN_SPAN = 0.40
-HISTORY_MAX_DAMP = 0.45
-
-
-def volume_confidence(n: int, k: float) -> float:
-    if k <= 0:
-        return 1.0
-    return n / (n + k)
-
-
-def soft_cap(raw: float) -> float:
-    if raw <= SOFTCAP_START:
-        return max(0.0, raw)
-    return SOFTCAP_START + (1.0 - SOFTCAP_START) * (
-        1.0 - math.exp(-(raw - SOFTCAP_START) / SOFTCAP_TAU)
-    )
-
-
-CATASTROPHE_PATTERNS = [
-    r"kernel panic",
-    r"\bpanic\b",
-    r"segfault",
-    r"sigsegv",
-    r"data loss",
-    r"\bcorrupt\w*",
-    r"split[- ]brain",
-    r"power failure",
-    r"cascading failure",
-    r"unrecoverable",
-    r"security breach",
-    r"\bhalted\b",
-    r"double fault",
-    r"filesystem read-?only",
-]
-_CATASTROPHE_RE = re.compile("|".join(CATASTROPHE_PATTERNS), re.IGNORECASE)
-
-FAILURE_PATTERNS = [
-    r"fail(?:ed|ure|ing)?\b",
-    r"error",
-    r"exception",
-    r"timed?[ _-]?out",
-    r"exhaust(?:ed|ion)",
-    r"declin(?:ed|e)\b",
-    r"denied",
-    r"refus(?:ed|al)",
-    r"reject(?:ed|ion)",
-    r"crash(?:ed|ing)?",
-    r"abort(?:ed|ing)?",
-    r"out[ _-]?of[ _-]?memory",
-    r"\boom\b",
-    r"unreachable",
-    r"unavailable",
-    r"dead[ -]?lock",
-    r"\bcannot\b",
-    r"\bcan't\b",
-    r"could not",
-    r"unable to",
-    r"no space left",
-    r"enospc",
-    r"\bexpired\b",
-    r"\blost\b",
-    r"too many",
-    r"\bdown\b",
-    r"not responding",
-]
-_FAILURE_RE = re.compile("|".join(FAILURE_PATTERNS), re.IGNORECASE)
 
 
 def otsu_threshold(
@@ -346,7 +277,6 @@ def _score_entries(
 ) -> tuple[np.ndarray, list[list[str]]]:
     n = sig.n
     registry = sig.registry
-    severities = sig.severities
     levels = sig.levels
     level_totals = sig.level_totals
     group_labels = sig.group_labels
@@ -369,108 +299,41 @@ def _score_entries(
     conf = volume_confidence(n, cfg.rarity_confidence_k)
 
     for i, e in enumerate(entries):
-        sev = int(severities[i])
         gi = registry.entry_group[i]
         g = registry.groups[gi]
         gl = int(group_labels[gi])
-        entry_reasons: list[str] = []
-
-        chronic = bool(group_chronic[gi])
-        if sev <= HARD_FLAG_SEVERITY:
-            score = 1.0
-            entry_reasons.append(f"{e.level.upper()} level is always flagged")
-        else:
-            score = SEVERITY_BASE.get(sev, 0.15)
-            if chronic:
-                score *= CHRONIC_DAMP  # routine, high-volume severe pattern
-            if (
-                3 <= sev <= 4
-                and g.count >= HISTORY_MIN_COUNT
-                and group_span[gi] >= HISTORY_MIN_SPAN
-            ):
-                hp = group_history[gi]
-                routine = min(1.0, max(0.0, (hp - HISTORY_HEAD) / (1.0 - HISTORY_HEAD)))
-                if routine > 0:
-                    score *= 1.0 - HISTORY_MAX_DAMP * routine
-                    entry_reasons.append(
-                        f"routine by own history ({hp:.0%} of occurrences in leading window)"
-                    )
-            if score > 0:
-                entry_reasons.append(f"severity {e.level.upper()}")
-
         level_total = level_totals.get(levels[i], 1)
-        dyn_threshold = max(cfg.rare_min, int(level_total * cfg.rare_pct))
-        rarity = 0.0
-        if gl == -1:
-            rarity = 0.75
-            entry_reasons.append("unclustered (semantic noise point)")
-        else:
-            csize = cluster_sizes.get(gl, 0.0)
-            if csize <= dyn_threshold:
-                rarity = 0.45 + 0.30 * (1.0 - csize / (dyn_threshold + 1.0))
-                entry_reasons.append(
-                    f"rare pattern ({int(csize)} of {level_total} {levels[i]} entries)"
-                )
-        if group_outlier[gi]:
-            z = group_outlier_z[gi]
-            rarity = max(rarity, min(0.35 + 0.10 * max(0.0, z - 2.0), 0.75))
-            entry_reasons.append(f"semantic outlier within {levels[i]} level (z={z:.1f})")
-        if g.count <= max(2, int(0.005 * level_total)):
-            rarity = max(rarity, 0.40)
-            if not any("rare" in r for r in entry_reasons):
-                entry_reasons.append(f"template seen only {g.count}x")
-        _extreme_outlier = (
-            group_outlier[gi]
-            and group_outlier_z[gi] >= OUTLIER_Z_EXEMPT
-            and group_outlier_dist[gi] > OUTLIER_DIST_FLOOR
+        sig_i = Signals(
+            level=e.level,
+            message=e.message,
+            template_count=g.count,
+            level_total=level_total,
+            file_total=n,
+            has_clusters=True,
+            cluster_label=gl,
+            cluster_size=cluster_sizes.get(gl, 0.0) if gl != -1 else 0.0,
+            rare_min=cfg.rare_min,
+            rare_pct=cfg.rare_pct,
+            safe_rarity_damp=cfg.safe_rarity_damp,
+            is_outlier=bool(group_outlier[gi]),
+            outlier_z=float(group_outlier_z[gi]),
+            outlier_dist=float(group_outlier_dist[gi]),
+            burst=bool(burst_mask[i]),
+            burst_factor=cfg.burst_factor,
+            burst_window=cfg.burst_window,
+            is_flood=bool(group_flood[gi]),
+            is_recurring=bool(group_recurring[gi]),
+            is_global_rare=bool(group_global_rare[gi]),
+            group_span=float(group_span[gi]),
+            is_novel=bool(group_novel[gi]),
+            is_surge=bool(group_surge[gi]),
+            chronic=bool(group_chronic[gi]),
+            history_routine=float(group_history[gi]),
+            confidence=conf,
         )
-        if sev >= 5 and gl != -1 and not _extreme_outlier:
-            rarity *= cfg.safe_rarity_damp
-        if chronic:
-            rarity *= CHRONIC_DAMP
-            if not any("chronic" in r for r in entry_reasons):
-                entry_reasons.append(f"chronic pattern ({g.count}x) — damped as routine noise")
-        rarity *= conf  # thin-sample rarity is unreliable; damp it
-        score += rarity
-
-        if group_global_rare[gi] and sev <= 4 and not chronic:
-            score += GLOBAL_RARE_BONUS * conf
-            entry_reasons.append(f"globally rare ({g.count / n:.2%} of file)")
-
-        if burst_mask[i]:
-            score += 0.50
-            entry_reasons.append(
-                f"rate burst (> {cfg.burst_factor:g}x baseline in {cfg.burst_window:g}s window)"
-            )
-
-        if group_flood[gi]:
-            score += 0.35 + 0.25 * min(1.0, g.count / n)
-            entry_reasons.append(f"flood: pattern is {g.count / n:.0%} of the whole file")
-
-        if group_recurring[gi] and not chronic:
-            conc = (g.count / (g.count + 8.0)) * (1.0 - group_span[gi])
-            score += 0.02 + 0.25 * conc
-            entry_reasons.append(
-                f"recurring {e.level.upper()} pattern ({g.count}x, concentration {conc:.2f})"
-            )
-
-        if sev <= 4 and not chronic and _CATASTROPHE_RE.search(e.message):
-            score += 0.20
-            entry_reasons.append("catastrophic keyword")
-
-        if sev <= 4 and not chronic and _FAILURE_RE.search(e.message):
-            score += 0.22
-            entry_reasons.append("failure keyword in severe entry")
-
-        if group_novel[gi] and sev <= 4:
-            score += 0.35
-            entry_reasons.append("never seen in baseline")
-        elif group_surge[gi] and sev <= 4:
-            score += 0.30
-            entry_reasons.append("frequency surge vs baseline (>10x)")
-
-        scores[i] = soft_cap(score)
-        reasons[i] = entry_reasons
+        result = policy_score(sig_i)
+        scores[i] = result.score
+        reasons[i] = result.reason_texts
     return scores, reasons
 
 

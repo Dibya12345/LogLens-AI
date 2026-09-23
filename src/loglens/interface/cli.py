@@ -284,13 +284,15 @@ def analyze(
         if turbo:
             console.print(f"\n[bold cyan][LogLens][/bold cyan] Source: [yellow]{source}[/yellow]")
             console.print(
-                "[bold cyan][LogLens][/bold cyan] Mode: [bold magenta]⚡ Turbo (parallel scan)[/bold magenta]"
+                "[bold cyan][LogLens][/bold cyan] Mode: [bold magenta]⚡ Turbo (parallel scan)[/bold magenta] "
+                "[dim]— signals: template frequency + severity + keywords (skips embeddings & timing)[/dim]"
             )
             loop = asyncio.get_running_loop()
-            res = await loop.run_in_executor(
-                None,
-                functools.partial(turbo_scan, source, workers=(workers if workers else None)),
-            )
+            with console.status("[bold magenta]⚡ Turbo scanning…[/bold magenta]", spinner="dots"):
+                res = await loop.run_in_executor(
+                    None,
+                    functools.partial(turbo_scan, source, workers=(workers if workers else None)),
+                )
             console.print(f"[bold cyan][LogLens][/bold cyan] Workers: [bold]{res.workers}[/bold]")
             console.print(
                 f"[bold cyan][LogLens][/bold cyan] Parsed lines: [bold]{res.parsed_lines:,}[/bold]"
@@ -316,14 +318,18 @@ def analyze(
             display = anomalies[:limit]
             if display:
                 console.print()
+                blocks = []
+                for a in display:
+                    col = _level_color(a.level)
+                    head = (
+                        f"[{col}][{a.level}][/{col}] [yellow]{a.service}[/yellow] "
+                        f"[dim](×{a.count:,}, score {a.score:.2f})[/dim]  {a.sample[:100]}"
+                    )
+                    why = "; ".join(a.reasons) or "no signals"
+                    blocks.append(f"{head}\n   [dim]↳ why: {why}[/dim]")
                 console.print(
                     Panel(
-                        "\n".join(
-                            f"[{_level_color(a.level)}] [{a.level}][/{_level_color(a.level)}] "
-                            f"[yellow]{a.service}[/yellow] "
-                            f"[dim](×{a.count:,}, score {a.score})[/dim] — {a.sample[:110]}"
-                            for a in display
-                        ),
+                        "\n\n".join(blocks),
                         title=f"[bold red]TOP ANOMALIES ({len(anomalies)} total)[/bold red]",
                         border_style="red",
                     )
@@ -398,11 +404,13 @@ def analyze(
 
         if deep:
             console.print(
-                "[bold cyan][LogLens][/bold cyan] Mode: [bold magenta] Deep (neural embeddings)[/bold magenta]"
+                "[bold cyan][LogLens][/bold cyan] Mode: [bold magenta]🧠 Deep (neural embeddings)[/bold magenta] "
+                "[dim]— signals: neural embeddings + clustering + timing + severity + keywords[/dim]"
             )
         else:
             console.print(
-                "[bold cyan][LogLens][/bold cyan] Mode: [bold green] Fast (TF-IDF embeddings)[/bold green]"
+                "[bold cyan][LogLens][/bold cyan] Mode: [bold green]⚙ Fast (TF-IDF embeddings)[/bold green] "
+                "[dim]— signals: TF-IDF clustering + timing + severity + keywords[/dim]"
             )
         engine = _select_engine(deep)
 
@@ -416,7 +424,11 @@ def analyze(
                 f"[bold]{len(registry):,}[/bold] "
                 f"[dim](encoding templates, not lines)[/dim]"
             )
-            vectors = engine.embed_templates(entries, registry)
+            with console.status(
+                "[bold magenta]🧠 Encoding templates with the neural model…[/bold magenta]",
+                spinner="dots",
+            ):
+                vectors = engine.embed_templates(entries, registry)
         else:
             # Large inputs embed in chunks — show a live bar so it never looks hung.
             if len(entries) > 50_000:
@@ -429,14 +441,20 @@ def analyze(
                 finally:
                     emb_prog.stop()
             else:
-                vectors = engine.embed(entries)
+                with console.status(
+                    "[bold cyan]⚙ Computing embeddings…[/bold cyan]", spinner="dots"
+                ):
+                    vectors = engine.embed(entries)
         console.print(
             f"[bold cyan][LogLens][/bold cyan] Embeddings ready: "
             f"[bold green]shape={vectors.shape}[/bold green]"
         )
 
         # --- anomaly detection ---
-        normal, anomalies, labels = detect_anomalies(entries, vectors)
+        with console.status(
+            "[bold cyan]🔍 Detecting anomalies (clustering + scoring)…[/bold cyan]", spinner="dots"
+        ):
+            normal, anomalies, labels = detect_anomalies(entries, vectors)
         summary = cluster_summary(labels)
 
         # --- supervised: explicit model, else bundled default, else unsupervised ---
@@ -596,14 +614,18 @@ def analyze(
         if groups:
             display = groups[:limit]
             console.print()
+            blocks = []
+            for g in display:
+                col = _level_color(g.level)
+                head = (
+                    f"[{col}][{g.level}][/{col}] [yellow]{g.service}[/yellow] "
+                    f"[dim](×{g.count:,}, score {g.max_score:.2f})[/dim]  {g.sample[:100]}"
+                )
+                why = "; ".join(getattr(g, "reasons", []) or []) or "no signals"
+                blocks.append(f"{head}\n   [dim]↳ why: {why}[/dim]")
             console.print(
                 Panel(
-                    "\n".join(
-                        f"[{_level_color(g.level)}] [{g.level}][/{_level_color(g.level)}] "
-                        f"[yellow]{g.service}[/yellow] "
-                        f"[dim](×{g.count:,}, score {g.max_score:.2f})[/dim] — {g.sample[:110]}"
-                        for g in display
-                    ),
+                    "\n\n".join(blocks),
                     title=f"[bold red]ANOMALY FAMILIES ({len(groups)} families, "
                     f"{len(filtered_anomalies)} events)[/bold red]",
                     border_style="red",

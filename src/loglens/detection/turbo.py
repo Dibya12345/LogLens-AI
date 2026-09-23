@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import logging
-import math
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from loglens.detection.templates import template_key
-from loglens.domain.severity import TURBO_SEVERITY_DEFAULT, TURBO_SEVERITY_WEIGHT
+from loglens.domain.scoring import Signals, threshold_for
+from loglens.domain.scoring import score as policy_score
 
 logger = logging.getLogger("loglens.turbo")
 
@@ -91,9 +91,11 @@ class Template:
     sample: str
     service: str
     score: float = 0.0
+    reasons: list[str] = field(default_factory=list)
+    threshold: float = threshold_for("normal")
 
     def is_anomaly(self) -> bool:
-        return self.score >= 0.5
+        return self.score >= self.threshold
 
 
 @dataclass
@@ -102,6 +104,7 @@ class ScanResult:
     parsed_lines: int
     templates: list[Template]
     workers: int
+    threshold: float = threshold_for("normal")
 
     def redundancy(self) -> float:
         u = len(self.templates)
@@ -111,20 +114,28 @@ class ScanResult:
         return [t for t in self.templates if t.is_anomaly()]
 
 
-def score_templates(merged: dict[tuple[str, str], list], total: int) -> list[Template]:
+def score_templates(
+    merged: dict[tuple[str, str], list], total: int, sensitivity: str = "normal"
+) -> list[Template]:
     if total == 0:
         return []
-    unique = len(merged)
-    low_redundancy = unique > 0.5 * total
+
+    threshold = threshold_for(sensitivity)
+    # Per-level totals let the policy judge "rare within this level".
+    level_totals: dict[str, int] = {}
+    for (_level, _tmpl), (count, _sample, lvl, _svc) in merged.items():
+        level_totals[lvl] = level_totals.get(lvl, 0) + count
 
     out: list[Template] = []
     for (_level, tmpl), (count, sample, lvl, svc) in merged.items():
-        rarity = math.log1p(total / count) / math.log1p(total)  # 0..1
-        sev = TURBO_SEVERITY_WEIGHT.get(lvl, TURBO_SEVERITY_DEFAULT)
-        if low_redundancy:
-            score = 0.75 * sev + 0.25 * rarity
-        else:
-            score = 0.55 * rarity + 0.45 * sev
+        sig = Signals(
+            level=lvl,
+            message=sample,
+            template_count=count,
+            level_total=level_totals.get(lvl, total),
+            file_total=total,
+        )
+        res = policy_score(sig)
         out.append(
             Template(
                 level=lvl,
@@ -132,14 +143,18 @@ def score_templates(merged: dict[tuple[str, str], list], total: int) -> list[Tem
                 count=count,
                 sample=sample,
                 service=svc,
-                score=round(min(score, 1.0), 4),
+                score=round(res.score, 4),
+                reasons=res.reason_texts,
+                threshold=threshold,
             )
         )
     out.sort(key=lambda t: t.score, reverse=True)
     return out
 
 
-def scan_file(path: str, workers: int | None = None, **auto_kw) -> ScanResult:
+def scan_file(
+    path: str, workers: int | None = None, sensitivity: str = "normal", **auto_kw
+) -> ScanResult:
     size = os.path.getsize(path)
     w = workers or auto_workers(size, **auto_kw)
     chunks = split_chunks(path, w)
@@ -178,8 +193,14 @@ def scan_file(path: str, workers: int | None = None, **auto_kw) -> ScanResult:
                         slot[0] += v[0]
 
     parsed = sum(v[0] for v in merged.values())
-    templates = score_templates(merged, parsed)
-    return ScanResult(total_lines=parsed, parsed_lines=parsed, templates=templates, workers=w)
+    templates = score_templates(merged, parsed, sensitivity)
+    return ScanResult(
+        total_lines=parsed,
+        parsed_lines=parsed,
+        templates=templates,
+        workers=w,
+        threshold=threshold_for(sensitivity),
+    )
 
 
 def analyze(path: str, workers: int | None = None, **auto_kw) -> dict:
