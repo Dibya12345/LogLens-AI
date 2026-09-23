@@ -112,6 +112,7 @@ def test_hard_flag_levels_are_desaturated() -> None:
     )
     assert result.score < richer.score < 1.0
 
+
 def test_turbo_uses_the_shared_policy() -> None:
     from loglens.detection.turbo import score_templates
 

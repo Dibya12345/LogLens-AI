@@ -108,6 +108,7 @@ class Reason:
     def __str__(self) -> str:
         return self.text
 
+
 REASON_CODES = (
     "hard_flag",
     "severity",
@@ -130,7 +131,6 @@ REASON_CODES = (
 
 @dataclass
 class Signals:
-
     level: str
     message: str = ""
 
