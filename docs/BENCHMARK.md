@@ -1,4 +1,4 @@
-# LogLens AI — Benchmark Results
+# LogLens AI - Benchmark Results
 
 Anomaly detection accuracy on **real-world production logs** from the
 [Loghub](https://github.com/logpai/loghub) collection. All numbers are
@@ -11,9 +11,9 @@ embeddings.
 > On **500,000 lines** of real supercomputer logs (Loghub BGL), LogLens AI
 > caught **100% of anomalies (zero misses)** at up to **91.7% precision**
 > (F1 **0.957**). Applied **unchanged** to a different cluster (Thunderbird),
-> it held a **0.67% false-positive rate** — no retuning. Fully local, zero setup.
+> it held a **0.67% false-positive rate** - no retuning. Fully local, zero setup.
 
-## Accuracy — Loghub BGL (500,000 lines, 206,847 labeled alerts)
+## Accuracy - Loghub BGL (500,000 lines, 206,847 labeled alerts)
 
 | Mode  | Type          | Precision | Recall | F1    | Speed      | FN |
 |-------|---------------|-----------|--------|-------|------------|----|
@@ -26,7 +26,7 @@ embeddings.
   embeddings add real precision over the keyword/statistical baseline.
 - **Turbo** matches fast accuracy exactly at higher throughput.
 
-## Generality — Loghub Thunderbird (500,000 lines, all-normal slice)
+## Generality - Loghub Thunderbird (500,000 lines, all-normal slice)
 
 Threshold tuned on BGL, applied **unchanged** to a different system's logs.
 On all-normal data every flag is a false positive, so this measures specificity.
@@ -36,7 +36,7 @@ On all-normal data every flag is a false positive, so this measures specificity.
 | fast | 0.82                  | 0.68% (3,418)   | 99.32%      | 8,590 l/s |
 | deep | 0.8339                | 0.67% (3,343)   | 99.33%      | 1,836 l/s |
 
-The score ordering generalizes across architectures with **no retuning** —
+The score ordering generalizes across architectures with **no retuning** -
 strong evidence the detector is not overfit to a single dataset.
 
 ## Reproduce
@@ -45,15 +45,15 @@ Download datasets from https://github.com/logpai/loghub (BGL, Thunderbird).
 
 ```bash
 # Accuracy on BGL (fast / turbo / deep)
-python benchmark_labeled.py --file data/bgl/BGL.log --limit 500000 --sweep --threshold 0.8339 --mode fast
-python benchmark_labeled.py --file data/bgl/BGL.log --limit 500000 --sweep --threshold 0.8339 --mode turbo
-python benchmark_labeled.py --file data/bgl/BGL.log --limit 500000 --sweep --threshold 0.8339 --mode deep
+python scripts/benchmark_labeled.py --file data/bgl/BGL.log --limit 500000 --sweep --threshold 0.8339 --mode fast
+python scripts/benchmark_labeled.py --file data/bgl/BGL.log --limit 500000 --sweep --threshold 0.8339 --mode turbo
+python scripts/benchmark_labeled.py --file data/bgl/BGL.log --limit 500000 --sweep --threshold 0.8339 --mode deep
 
 # Slice a manageable chunk from the 31GB Thunderbird file
 head -n 500000 data/tbird/Thunderbird.log > data/tbird/Thunderbird_500k.log
 
 # Cross-dataset generality (unchanged threshold)
-python benchmark_labeled.py --file data/tbird/Thunderbird_500k.log --limit 500000 --threshold 0.8339 --mode deep
+python scripts/benchmark_labeled.py --file data/tbird/Thunderbird_500k.log --limit 500000 --threshold 0.8339 --mode deep
 ```
 
 ## Notes on honesty

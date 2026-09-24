@@ -1,16 +1,15 @@
-import os
-
 import pytest
 
-from loglens.pipeline.filetype import (
-    check_source,
-    _looks_binary,
+from loglens.detection.filetype import (
     InvalidSourceError,
+    _looks_binary,
+    check_source,
 )
 
 
-
-@pytest.mark.parametrize("src", ["-", "stdin", "http://x/y.log", "https://x/y.log", "cmd:tail -f x"])
+@pytest.mark.parametrize(
+    "src", ["-", "stdin", "http://x/y.log", "https://x/y.log", "cmd:tail -f x"]
+)
 def test_passthrough_sources_ok(src):
     check_source(src)  # should not raise
 
@@ -18,7 +17,6 @@ def test_passthrough_sources_ok(src):
 def test_empty_source_raises():
     with pytest.raises(InvalidSourceError, match="No source"):
         check_source("")
-
 
 
 def test_accepts_utf8_log(tmp_path):
@@ -49,13 +47,16 @@ def test_directory_raises(tmp_path):
         check_source(str(tmp_path))
 
 
-@pytest.mark.parametrize("name,frag", [
-    ("report.pdf", "PDF"),
-    ("notes.docx", "Word"),
-    ("photo.png", "image"),
-    ("data.xlsx", "Excel"),
-    ("prog.exe", "executable"),
-])
+@pytest.mark.parametrize(
+    "name,frag",
+    [
+        ("report.pdf", "PDF"),
+        ("notes.docx", "Word"),
+        ("photo.png", "image"),
+        ("data.xlsx", "Excel"),
+        ("prog.exe", "executable"),
+    ],
+)
 def test_rejects_known_binary_extensions(tmp_path, name, frag):
     p = tmp_path / name
     p.write_bytes(b"anything")
@@ -89,7 +90,7 @@ def test_looks_binary_helper():
     assert _looks_binary(b"plain ascii log line") is False
     assert _looks_binary(b"") is False
     # undecodable, mostly non-printable bytes → binary
-    assert _looks_binary(bytes([0x81, 0x8f, 0x90, 0x9d]) * 20) is True
+    assert _looks_binary(bytes([0x81, 0x8F, 0x90, 0x9D]) * 20) is True
     # valid-UTF-8 text with a few control chars is still text
     assert _looks_binary(b"INFO ok\tmore\ttext\n" * 5) is False
 

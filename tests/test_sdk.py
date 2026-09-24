@@ -1,26 +1,27 @@
 import asyncio
 import logging
-import subprocess, sys, os
+import os
+import subprocess
+import sys
+
 import pytest
-from loglens.llm import LLMResponse, TokenUsage
-from loglens import (LiveDetector, LogLensHandler, RunConfig, analyze,
-                     analyze_async)
-from loglens.pipeline.ingestion import AsyncCommandReader, CommandError
-import loglens.llm.rca as rca_mod
+
+import loglens.infrastructure.llm.rca as rca_mod
+from loglens import LiveDetector, LogLensHandler, analyze, analyze_async
+from loglens.detection.ingestion import AsyncCommandReader, CommandError
+from loglens.infrastructure.llm import LLMResponse, TokenUsage
 
 LINES = (
-    [f"2024-01-01T00:00:{i:02d}Z INFO api request completed {i % 7}ms"
-     for i in range(40)]
+    [f"2024-01-01T00:00:{i:02d}Z INFO api request completed {i % 7}ms" for i in range(40)]
     + ["2024-01-01T00:01:00Z FATAL db disk failure raid degraded"]
-    + [f"2024-01-01T00:01:{i:02d}Z ERROR db connection refused host=db-1"
-       for i in range(1, 11)]
+    + [f"2024-01-01T00:01:{i:02d}Z ERROR db connection refused host=db-1" for i in range(1, 11)]
 )
 
 
 def test_analyze_lines_basic():
     r = analyze(lines=LINES)
     assert r.total == 51
-    assert len(r.anomalies) >= 11          # FATAL + the ERROR storm
+    assert len(r.anomalies) >= 11  # FATAL + the ERROR storm
     assert r.anomalies[0].score >= r.anomalies[-1].score  # sorted
     levels = {a.level for a in r.anomalies}
     assert "FATAL" in levels and "ERROR" in levels
@@ -56,6 +57,7 @@ def test_analyze_cmd_failure_raises():
 def test_analyze_async_inside_loop():
     async def go():
         return await analyze_async(lines=LINES)
+
     r = asyncio.run(go())
     assert len(r.anomalies) >= 11
 
@@ -65,16 +67,15 @@ def test_analyze_config_threshold_passthrough():
     hi = analyze(lines=LINES, threshold=0.95)
     assert len(hi.anomalies) <= len(lo.anomalies)
 
+
 def test_live_detector_stream():
     det = LiveDetector(window=200, rescore_every=20, min_window=5)
     hits = []
     for i in range(60):
-        hits += det.feed(
-            f"2024-01-01T00:00:{i % 60:02d}Z INFO api request ok {i % 5}")
+        hits += det.feed(f"2024-01-01T00:00:{i % 60:02d}Z INFO api request ok {i % 5}")
     hits += det.feed("2024-01-01T00:01:00Z FATAL db split-brain detected")
     for i in range(20):
-        hits += det.feed(
-            f"2024-01-01T00:01:{i+1:02d}Z ERROR db connection refused")
+        hits += det.feed(f"2024-01-01T00:01:{i + 1:02d}Z ERROR db connection refused")
     hits += det.flush()
 
     assert det.total == 81
@@ -88,9 +89,9 @@ def test_live_detector_stream():
 
 
 def test_live_detector_fatal_is_instant():
-    det = LiveDetector(min_window=1000)   # windowed scoring effectively off
+    det = LiveDetector(min_window=1000)  # windowed scoring effectively off
     hits = det.feed("2024-01-01T00:00:00Z FATAL kernel panic")
-    hits += det.flush()   # parser buffers the first line (multiline logs)
+    hits += det.flush()  # parser buffers the first line (multiline logs)
     assert [h.level for h in hits] in (["FATAL"], ["CRITICAL"])
     assert "surfaced immediately" in hits[0].reasons[0]
 
@@ -101,13 +102,14 @@ def test_live_detector_window_eviction():
         det.feed(f"2024-01-01T00:00:00Z INFO ok {i % 3}")
     assert det.summary()["window"] <= 50
 
+
 def test_logging_handler_callback_and_isolation():
     got, boom = [], []
 
     def cb(a):
         got.append(a)
         boom.append(1)
-        raise RuntimeError("callback exploded")   # must never propagate
+        raise RuntimeError("callback exploded")  # must never propagate
 
     h = LogLensHandler(on_anomaly=cb, min_window=5, rescore_every=10)
     lg = logging.getLogger("test.svc.iso")
@@ -117,7 +119,7 @@ def test_logging_handler_callback_and_isolation():
     try:
         for i in range(30):
             lg.info("heartbeat ok %d", i % 3)
-        lg.critical("kernel panic null pointer")   # -> anomaly, cb raises
+        lg.critical("kernel panic null pointer")  # -> anomaly, cb raises
         for i in range(10):
             lg.info("heartbeat ok %d", i % 3)
         h.flush()
@@ -134,14 +136,14 @@ def test_logging_handler_no_recursion_when_callback_logs():
     lg = logging.getLogger("test.svc.rec")
 
     def cb(a):
-        lg.error("alerting about %s", a.message)   # logs to same logger
+        lg.error("alerting about %s", a.message)  # logs to same logger
 
     h = LogLensHandler(on_anomaly=cb, min_window=5)
     lg.addHandler(h)
     lg.setLevel(logging.DEBUG)
     lg.propagate = False
     try:
-        lg.critical("segfault in worker")          # would recurse if unguarded
+        lg.critical("segfault in worker")  # would recurse if unguarded
     finally:
         lg.removeHandler(h)
     assert len(h.anomalies) == 1
@@ -150,6 +152,7 @@ def test_logging_handler_no_recursion_when_callback_logs():
 def test_command_reader_bounded():
     async def go():
         return [ln async for ln in AsyncCommandReader("printf 'a\\nb\\nc\\n'")]
+
     assert asyncio.run(go()) == ["a", "b", "c"]
 
 
@@ -157,19 +160,20 @@ def test_command_reader_merges_stderr():
     async def go():
         r = AsyncCommandReader("echo out; echo err 1>&2")
         return sorted([ln async for ln in r])
+
     assert asyncio.run(go()) == ["err", "out"]
 
 
 def test_command_reader_streaming_early_stop_kills_child():
     async def go():
-        r = AsyncCommandReader(
-            "i=0; while true; do echo line $i; i=$((i+1)); sleep 0.02; done")
+        r = AsyncCommandReader("i=0; while true; do echo line $i; i=$((i+1)); sleep 0.02; done")
         seen = []
         async for ln in r:
             seen.append(ln)
             if len(seen) >= 5:
                 break
         return seen
+
     seen = asyncio.run(go())
     assert len(seen) == 5
 
@@ -178,8 +182,10 @@ def test_command_reader_missing_binary():
     async def go():
         async for _ in AsyncCommandReader(["no-such-binary-xyz"]):
             pass
+
     with pytest.raises(CommandError):
         asyncio.run(go())
+
 
 class _FakeLLMClient:
     def __init__(self, config):
@@ -194,7 +200,7 @@ class _FakeLLMClient:
 
 @pytest.fixture
 def fake_llm(monkeypatch):
-    
+
     monkeypatch.setattr(rca_mod, "LLMClient", _FakeLLMClient)
     monkeypatch.setenv("LOGLENS_LLM_PROVIDER", "openai")
     monkeypatch.setenv("LOGLENS_LLM_MODEL", "test-model")
@@ -232,27 +238,34 @@ def test_livedetector_rca_and_html(fake_llm, tmp_path):
 
 
 def test_watch_cli_html_report(fake_llm, tmp_path):
-    
+
     env = dict(os.environ)
     out_html = tmp_path / "watch.html"
     out_md = tmp_path / "watch_rca.md"
     proc = subprocess.run(
-        [sys.executable, "-c",
-         # patch the LLM inside the subprocess, then invoke the CLI
-         "import loglens.llm.rca as m;\n"
-         "from loglens.llm import TokenUsage, LLMResponse\n"
-         "class F:\n"
-         "  def __init__(s,c): pass\n"
-         "  def chat(s,msgs): return LLMResponse(content='Root cause: db pool exhausted.', usage=TokenUsage())\n"
-         "m.LLMClient=F\n"
-         "import sys; from loglens.cli import app\n"
-         f"sys.argv=['loglens','watch',"
-         f"\"printf 'INFO ok\\\\nFATAL db split-brain detected\\\\n"
-         f"ERROR db connection refused\\\\n'\","
-         f"'--quiet','--rca','--rca-out',{str(out_md)!r},"
-         f"'--html-report',{str(out_html)!r}]\n"
-         "app()"],
-        capture_output=True, text=True, timeout=120, env=env)
+        [
+            sys.executable,
+            "-c",
+            # patch the LLM inside the subprocess, then invoke the CLI
+            "import loglens.infrastructure.llm.rca as m;\n"
+            "from loglens.infrastructure.llm import TokenUsage, LLMResponse\n"
+            "class F:\n"
+            "  def __init__(s,c): pass\n"
+            "  def chat(s,msgs): return LLMResponse(content='Root cause: db pool exhausted.', usage=TokenUsage())\n"
+            "m.LLMClient=F\n"
+            "import sys; from loglens.interface.cli import app\n"
+            f"sys.argv=['loglens','watch',"
+            f"\"printf 'INFO ok\\\\nFATAL db split-brain detected\\\\n"
+            f"ERROR db connection refused\\\\n'\","
+            f"'--quiet','--rca','--rca-out',{str(out_md)!r},"
+            f"'--html-report',{str(out_html)!r}]\n"
+            "app()",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env=env,
+    )
     assert "WATCH SUMMARY" in proc.stdout, proc.stdout + proc.stderr
     assert "Root cause" in proc.stdout
     assert out_html.exists() and "Root cause" in out_html.read_text()

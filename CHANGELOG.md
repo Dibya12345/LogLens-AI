@@ -3,6 +3,54 @@
 All notable changes to LogLens AI are documented here.
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## [0.11.0] - 2026-09-23
+
+### Bug Fixes
+- Fixed issue #3 (1db23af)
+
+### Chores
+- Bump version to 0.10.0 (fc6abb6)
+
+### Other
+- Add GitHub Action (analyze-action) + BrokenPipe fix (b204229)
+- Autofix trailing whitespace and newline (4315b95)
+- Unified scoring: correct scoring.py + normalized formatting (47262c5)
+- Unified scoring: correct scoring.py + normalized formatting (1346428)
+- Fix trailing-whitespace/newline lint from file transfer (78c5880)
+- Unify scoring across live/classic/turbo; de-saturated hard-flag; explainable output + progress (539c4f0)
+- Updated ReadMe.md (db7844f)
+
+## [0.9.0] - 2026-09-22
+
+### Bug Fixes
+- Platform-agnostic — UTF-8/CRLF handling, Windows resource guard, spawn fallback (b02a1f3)
+
+### Chores
+- Updated the readme. (4852f22)
+
+### Documentation
+- Tracking badges + reproducible benchmark links (15e0b1b)
+
+### Other
+- Added new logo image (8672fc8)
+- Phase 7: enforce layer boundaries in CI (import-linter); move entry points to interface (2d75603)
+- Phase 6: reorganize modules into layer packages (domain/detection/application/infrastructure/interface) (0fea529)
+- Fix CI mypy: skip numpy 2.x PEP695 stubs; type LiveProgress.task_id (2ad3ab0)
+- Phase 5: clear mypy to zero, enforce ruff/mypy + coverage gates in CI (b51e80f)
+- Phase 4: LLM redaction, webhook SSRF guard, secret + thread-safety hardening (47e5afb)
+- Phase 3: fix live api inversion, extract reporting service, alerter port (08f31ba)
+- Added cloud.py (fa5c50a)
+- Phase 2: SRP decomposition split detector.detect, extract cloud-JSON, typed LogEntry, dedup CLI (39881d3)
+- Normalize trailing newlines + import order (e846906)
+- Phase 1: single severity source of truth, one masker, drop dead code, tidy scripts (e4822fa)
+- Removed the data folder (9244d4b)
+- Phase 0: fix silent render bug, remove dead deps, add observability + tooling (6a496f1)
+- Add file-type guard + LLM provider abstraction (Closes #2) (dc50f9d)
+- Merge pull request #1 from Dibya12345/main
+
+chore: Updated the readme. (90773c0)
+- Added Ci gate check (933dda9)
+
 ## [0.8.1] - 2026-09-14
 
 ### Bug Fixes
@@ -27,13 +75,13 @@ This project adheres to [Semantic Versioning](https://semver.org).
 ### Other
 - Merge branch 'main' of github.com:ParasRajput810/LogLens-AI (afdf74c)
 
+### Performance
+- Chunk embeddings; add bundled bgl model (6e829c3)
+
 ## [0.4.0] - 2026-09-12
 
 ### Features
 - Add supervised train/analyze --model; fix stdin ingestion (f9fb1bc)
-
-### Performance
-- Chunk embeddings; add bundled bgl model (6e829c3)
 
 ## [0.3.4] - 2026-09-07
 

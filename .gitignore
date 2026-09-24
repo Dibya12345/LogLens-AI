@@ -34,7 +34,10 @@ tests/fixtures/sample.log
 .DS_Store
 Thumbs.db
 
-benchmarks/*.logdatasets/
+benchmarks/*.log
 datasets/
-datasets/
-datasets/
+
+# coverage data
+.coverage
+.coverage.*
+htmlcov/

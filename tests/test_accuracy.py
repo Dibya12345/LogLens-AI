@@ -1,42 +1,41 @@
-import time
-import statistics
 import json
-import pytest
-import numpy as np
-from pathlib import Path
+import statistics
+import time
 from collections import defaultdict
-from loglens.models import LogEntry
-from loglens.pipeline.parser import detect_format, parse_line
-from loglens.pipeline.embeddings import EmbeddingEngine
+from pathlib import Path
 
-FIXTURE_LOG    = Path("tests/fixtures/large_sample.log")
+import numpy as np
+import pytest
+
+from loglens.detection.embeddings import EmbeddingEngine
+from loglens.detection.parser import detect_format, parse_line
+from loglens.domain.models import LogEntry
+
+FIXTURE_LOG = Path("tests/fixtures/large_sample.log")
 FIXTURE_LABELS = Path("tests/fixtures/large_sample_labels.json")
 
 pytestmark = pytest.mark.skipif(
-    not FIXTURE_LOG.exists(),
-    reason="Run: python tests/fixtures/generate_logs.py first"
+    not FIXTURE_LOG.exists(), reason="Run: python tests/fixtures/generate_logs.py first"
 )
 
 
 def is_sentence_transformers_available() -> bool:
-    try:
-        import sentence_transformers
-        return True
-    except ImportError:
-        return False
+    import importlib.util
+
+    return importlib.util.find_spec("sentence_transformers") is not None
 
 
 skip_if_no_st = pytest.mark.skipif(
-    not is_sentence_transformers_available(),
-    reason="sentence-transformers not installed"
+    not is_sentence_transformers_available(), reason="sentence-transformers not installed"
 )
 
 
 # --- helpers ---
 
+
 def load_fixtures():
     with open(FIXTURE_LABELS) as f:
-        labels = json.load(f)   # {str(idx): cluster_name}
+        labels = json.load(f)  # {str(idx): cluster_name}
 
     entries = []
     fmt = None
@@ -65,7 +64,7 @@ def load_fixtures():
 def intra_inter_similarity(vectors: np.ndarray, labels: list) -> dict:
     cluster_indices = defaultdict(list)
     for i, label in enumerate(labels):
-        if label not in ("normal", "anomaly"):   # only measure named clusters
+        if label not in ("normal", "anomaly"):  # only measure named clusters
             cluster_indices[label].append(i)
 
     intra_sims = []
@@ -74,7 +73,7 @@ def intra_inter_similarity(vectors: np.ndarray, labels: list) -> dict:
     cluster_list = list(cluster_indices.keys())
 
     for cluster in cluster_list:
-        idxs = cluster_indices[cluster][:20]   # sample 20 per cluster
+        idxs = cluster_indices[cluster][:20]  # sample 20 per cluster
         # intra: pairs within same cluster
         for i in range(len(idxs)):
             for j in range(i + 1, len(idxs)):
@@ -83,7 +82,7 @@ def intra_inter_similarity(vectors: np.ndarray, labels: list) -> dict:
                 intra_sims.append(sim)
 
     for i, c1 in enumerate(cluster_list):
-        for c2 in cluster_list[i+1:]:
+        for c2 in cluster_list[i + 1 :]:
             i1 = cluster_indices[c1][:5]
             i2 = cluster_indices[c2][:5]
             for a_idx in i1:
@@ -119,7 +118,7 @@ def anomaly_separation_score(vectors: np.ndarray, labels: list) -> float:
 
     sims = anomaly_vectors @ centroid_matrix.T
     mean_sim = float(np.mean(sims))
-    return 1.0 - mean_sim   # higher = anomalies are more isolated
+    return 1.0 - mean_sim  # higher = anomalies are more isolated
 
 
 @pytest.fixture(scope="module")
@@ -137,7 +136,8 @@ def fast_vectors(fixture_data):
 
 @pytest.fixture(scope="module")
 def deep_vectors(fixture_data):
-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
+    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
+
     entries, labels = fixture_data
     engine = DeepEmbeddingEngine()
     vectors = engine.embed(entries)
@@ -147,9 +147,12 @@ def deep_vectors(fixture_data):
 def test_fast_intra_greater_than_inter(fast_vectors):
     vectors, labels = fast_vectors
     scores = intra_inter_similarity(vectors, labels)
-    print(f"\n[FAST] intra={scores['intra_mean']:.3f} inter={scores['inter_mean']:.3f} sep={scores['separation']:.3f}")
-    assert scores["intra_mean"] > scores["inter_mean"], \
+    print(
+        f"\n[FAST] intra={scores['intra_mean']:.3f} inter={scores['inter_mean']:.3f} sep={scores['separation']:.3f}"
+    )
+    assert scores["intra_mean"] > scores["inter_mean"], (
         f"Intra {scores['intra_mean']:.3f} should be > inter {scores['inter_mean']:.3f}"
+    )
 
 
 def test_fast_anomaly_isolation(fast_vectors):
@@ -162,17 +165,21 @@ def test_fast_anomaly_isolation(fast_vectors):
 def test_fast_cluster_separation_positive(fast_vectors):
     vectors, labels = fast_vectors
     scores = intra_inter_similarity(vectors, labels)
-    assert scores["separation"] > 0, \
+    assert scores["separation"] > 0, (
         f"Separation score should be positive, got {scores['separation']:.3f}"
+    )
 
 
 @skip_if_no_st
 def test_deep_intra_greater_than_inter(deep_vectors):
     vectors, labels = deep_vectors
     scores = intra_inter_similarity(vectors, labels)
-    print(f"\n[DEEP] intra={scores['intra_mean']:.3f} inter={scores['inter_mean']:.3f} sep={scores['separation']:.3f}")
-    assert scores["intra_mean"] > scores["inter_mean"], \
+    print(
+        f"\n[DEEP] intra={scores['intra_mean']:.3f} inter={scores['inter_mean']:.3f} sep={scores['separation']:.3f}"
+    )
+    assert scores["intra_mean"] > scores["inter_mean"], (
         f"Intra {scores['intra_mean']:.3f} should be > inter {scores['inter_mean']:.3f}"
+    )
 
 
 @skip_if_no_st
@@ -188,21 +195,29 @@ def test_deep_beats_fast_on_separation(fast_vectors, deep_vectors):
     fast_scores = intra_inter_similarity(fast_vectors[0], fast_vectors[1])
     deep_scores = intra_inter_similarity(deep_vectors[0], deep_vectors[1])
 
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print(f"{'ACCURACY REPORT':^50}")
-    print(f"{'='*50}")
+    print(f"{'=' * 50}")
     print(f"{'Metric':<30} {'Fast':>8} {'Deep':>8}")
-    print(f"{'-'*50}")
-    print(f"{'Intra-cluster similarity':<30} {fast_scores['intra_mean']:>8.3f} {deep_scores['intra_mean']:>8.3f}")
-    print(f"{'Inter-cluster similarity':<30} {fast_scores['inter_mean']:>8.3f} {deep_scores['inter_mean']:>8.3f}")
-    print(f"{'Separation (intra-inter)':<30} {fast_scores['separation']:>8.3f} {deep_scores['separation']:>8.3f}")
+    print(f"{'-' * 50}")
+    print(
+        f"{'Intra-cluster similarity':<30} {fast_scores['intra_mean']:>8.3f} {deep_scores['intra_mean']:>8.3f}"
+    )
+    print(
+        f"{'Inter-cluster similarity':<30} {fast_scores['inter_mean']:>8.3f} {deep_scores['inter_mean']:>8.3f}"
+    )
+    print(
+        f"{'Separation (intra-inter)':<30} {fast_scores['separation']:>8.3f} {deep_scores['separation']:>8.3f}"
+    )
     fast_anomaly = anomaly_separation_score(fast_vectors[0], fast_vectors[1])
     deep_anomaly = anomaly_separation_score(deep_vectors[0], deep_vectors[1])
     print(f"{'Anomaly isolation score':<30} {fast_anomaly:>8.3f} {deep_anomaly:>8.3f}")
-    print(f"{'='*50}")
+    print(f"{'=' * 50}")
 
-    assert deep_scores["separation"] >= fast_scores["separation"], \
+    assert deep_scores["separation"] >= fast_scores["separation"], (
         f"Deep separation {deep_scores['separation']:.3f} should be >= fast {fast_scores['separation']:.3f}"
+    )
+
 
 def benchmark_engine(engine, entries: list, runs: int = 3) -> dict:
     times = []
@@ -216,22 +231,22 @@ def benchmark_engine(engine, entries: list, runs: int = 3) -> dict:
         vector_shape = vectors.shape
 
     return {
-        "runs":         runs,
-        "shape":        vector_shape,
-        "total_logs":   len(entries),
-        "mean_s":       statistics.mean(times),
-        "min_s":        min(times),
-        "max_s":        max(times),
-        "stdev_s":      statistics.stdev(times) if runs > 1 else 0.0,
+        "runs": runs,
+        "shape": vector_shape,
+        "total_logs": len(entries),
+        "mean_s": statistics.mean(times),
+        "min_s": min(times),
+        "max_s": max(times),
+        "stdev_s": statistics.stdev(times) if runs > 1 else 0.0,
         "logs_per_sec": len(entries) / statistics.mean(times),
-        "ms_per_log":   (statistics.mean(times) / len(entries)) * 1000,
+        "ms_per_log": (statistics.mean(times) / len(entries)) * 1000,
     }
 
 
 def print_benchmark_report(label: str, result: dict):
-    print(f"\n{'='*55}")
+    print(f"\n{'=' * 55}")
     print(f"  BENCHMARK REPORT — {label}")
-    print(f"{'='*55}")
+    print(f"{'=' * 55}")
     print(f"  Total logs      : {result['total_logs']:,}")
     print(f"  Vector shape    : {result['shape']}")
     print(f"  Runs            : {result['runs']}")
@@ -241,7 +256,7 @@ def print_benchmark_report(label: str, result: dict):
     print(f"  Std  dev        : {result['stdev_s']:.3f}s")
     print(f"  Throughput      : {result['logs_per_sec']:,.0f} logs/sec")
     print(f"  Latency/log     : {result['ms_per_log']:.3f}ms")
-    print(f"{'='*55}")
+    print(f"{'=' * 55}")
 
 
 def test_fast_benchmark_small(fixture_data):
@@ -250,52 +265,60 @@ def test_fast_benchmark_small(fixture_data):
     result = benchmark_engine(EmbeddingEngine(), sample, runs=3)
     print_benchmark_report("FAST MODE — 100 logs", result)
     # must process at least 500 logs/sec
-    assert result["logs_per_sec"] > 500, \
+    assert result["logs_per_sec"] > 500, (
         f"Too slow: {result['logs_per_sec']:.0f} logs/sec (expected >500)"
+    )
 
 
 def test_fast_benchmark_large(fixture_data):
     entries, _ = fixture_data
     result = benchmark_engine(EmbeddingEngine(), entries, runs=3)
     print_benchmark_report("FAST MODE — 5000 logs", result)
-    assert result["logs_per_sec"] > 200, \
+    assert result["logs_per_sec"] > 200, (
         f"Too slow: {result['logs_per_sec']:.0f} logs/sec (expected >200)"
+    )
 
 
 def test_fast_latency_per_log(fixture_data):
     entries, _ = fixture_data
     result = benchmark_engine(EmbeddingEngine(), entries[:500], runs=3)
     print_benchmark_report("FAST MODE — latency test (500 logs)", result)
-    assert result["ms_per_log"] < 5.0, \
+    assert result["ms_per_log"] < 5.0, (
         f"Latency too high: {result['ms_per_log']:.3f}ms/log (expected <5ms)"
+    )
 
 
 @skip_if_no_st
 def test_deep_benchmark_small(fixture_data):
-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
+    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
+
     entries, _ = fixture_data
     sample = entries[:100]
     result = benchmark_engine(DeepEmbeddingEngine(), sample, runs=3)
     print_benchmark_report("DEEP MODE — 100 logs", result)
     # deep mode slower — at least 10 logs/sec
-    assert result["logs_per_sec"] > 10, \
+    assert result["logs_per_sec"] > 10, (
         f"Too slow: {result['logs_per_sec']:.0f} logs/sec (expected >10)"
+    )
 
 
 @skip_if_no_st
 def test_deep_benchmark_large(fixture_data):
-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
+    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
+
     entries, _ = fixture_data
     sample = entries[:500]
     result = benchmark_engine(DeepEmbeddingEngine(), sample, runs=2)
     print_benchmark_report("DEEP MODE — 500 logs", result)
-    assert result["logs_per_sec"] > 5, \
+    assert result["logs_per_sec"] > 5, (
         f"Too slow: {result['logs_per_sec']:.0f} logs/sec (expected >5)"
+    )
 
 
 @skip_if_no_st
 def test_fast_vs_deep_speed_comparison(fixture_data):
-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
+    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
+
     entries, _ = fixture_data
     sample = entries[:200]
 
@@ -304,16 +327,19 @@ def test_fast_vs_deep_speed_comparison(fixture_data):
 
     speedup = fast_result["logs_per_sec"] / deep_result["logs_per_sec"]
 
-    print(f"\n{'='*55}")
-    print(f"  SPEED COMPARISON — 200 logs")
-    print(f"{'='*55}")
+    print(f"\n{'=' * 55}")
+    print("  SPEED COMPARISON — 200 logs")
+    print(f"{'=' * 55}")
     print(f"  {'Mode':<20} {'Throughput':>12} {'ms/log':>10}")
-    print(f"  {'-'*45}")
-    print(f"  {'Fast (TF-IDF)':<20} {fast_result['logs_per_sec']:>10,.0f}/s {fast_result['ms_per_log']:>9.3f}ms")
-    print(f"  {'Deep (Neural)':<20} {deep_result['logs_per_sec']:>10,.0f}/s {deep_result['ms_per_log']:>9.3f}ms")
-    print(f"  {'-'*45}")
+    print(f"  {'-' * 45}")
+    print(
+        f"  {'Fast (TF-IDF)':<20} {fast_result['logs_per_sec']:>10,.0f}/s {fast_result['ms_per_log']:>9.3f}ms"
+    )
+    print(
+        f"  {'Deep (Neural)':<20} {deep_result['logs_per_sec']:>10,.0f}/s {deep_result['ms_per_log']:>9.3f}ms"
+    )
+    print(f"  {'-' * 45}")
     print(f"  Speedup (fast/deep) : {speedup:.1f}x faster")
-    print(f"{'='*55}")
+    print(f"{'=' * 55}")
 
-    assert speedup > 3, \
-        f"Fast mode should be >10x faster than deep, got {speedup:.1f}x"
+    assert speedup > 3, f"Fast mode should be >10x faster than deep, got {speedup:.1f}x"

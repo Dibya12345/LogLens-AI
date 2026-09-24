@@ -1,5 +1,5 @@
-import random
 import json
+import random
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -94,15 +94,22 @@ ANOMALIES = [
     "FATAL primary DNS server unresponsive fallback exhausted",
 ]
 
-SERVICES   = ["auth-service", "db-service", "api-gateway", "payment-service", "user-service", "cache-service"]
-HOSTS      = ["10.0.1.10", "10.0.1.11", "db-primary", "db-replica", "cache-01"]
-USERS      = ["alice", "bob", "carol", "dave", "eve", "frank"]
+SERVICES = [
+    "auth-service",
+    "db-service",
+    "api-gateway",
+    "payment-service",
+    "user-service",
+    "cache-service",
+]
+HOSTS = ["10.0.1.10", "10.0.1.11", "db-primary", "db-replica", "cache-01"]
+USERS = ["alice", "bob", "carol", "dave", "eve", "frank"]
 LEVELS_FOR = {
     "db_connection": "ERROR",
-    "auth_failure":  "ERROR",
-    "http_500":      "ERROR",
-    "memory_oom":    "CRITICAL",
-    "disk_io":       "WARN",
+    "auth_failure": "ERROR",
+    "http_500": "ERROR",
+    "memory_oom": "CRITICAL",
+    "disk_io": "WARN",
     "network_latency": "WARN",
 }
 
@@ -118,7 +125,7 @@ def fill(template: str) -> str:
         svc=random.choice(SERVICES),
         user=random.choice(USERS),
         uid=random.randint(1000, 9999),
-        ip=f"192.168.{random.randint(1,254)}.{random.randint(1,254)}",
+        ip=f"192.168.{random.randint(1, 254)}.{random.randint(1, 254)}",
     )
 
 
@@ -128,20 +135,19 @@ def make_timestamp(base: datetime, offset_seconds: int) -> str:
 
 def generate(
     output_path: str = "tests/fixtures/large_sample.log",
-    label_path:  str = "tests/fixtures/large_sample_labels.json",
-    total_logs:  int = 5000,
+    label_path: str = "tests/fixtures/large_sample_labels.json",
+    total_logs: int = 5000,
     anomaly_count: int = 30,
-    cluster_ratio: float = 0.5,   # 50% cluster logs, 50% normal
+    cluster_ratio: float = 0.5,  # 50% cluster logs, 50% normal
 ):
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
     base_time = datetime(2024, 1, 15, 0, 0, 0)
     lines = []
-    labels = []   # ground truth: (line_index, cluster_name)
 
     cluster_names = list(CLUSTERS.keys())
     cluster_logs_total = int(total_logs * cluster_ratio)
-    normal_logs_total  = total_logs - cluster_logs_total - anomaly_count
+    normal_logs_total = total_logs - cluster_logs_total - anomaly_count
 
     for i in range(cluster_logs_total):
         cluster = random.choice(cluster_names)
@@ -180,8 +186,9 @@ def generate(
 
     print(f"Generated {len(lines):,} log lines → {output_path}")
     print(f"Labels saved → {label_path}")
-    print(f"\nCluster breakdown:")
+    print("\nCluster breakdown:")
     from collections import Counter
+
     counts = Counter(label_map.values())
     for k, v in sorted(counts.items()):
         print(f"  {k:<20} {v:>5} lines")

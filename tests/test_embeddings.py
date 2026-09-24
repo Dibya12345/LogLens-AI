@@ -1,14 +1,17 @@
 import numpy as np
 import pytest
-from loglens.models import LogEntry
-from loglens.pipeline.embeddings import EmbeddingEngine, extract_features
-from loglens.pipeline.synonyms import (
-    normalize_message, detect_unknown_word,
-    split_camel_case, SynonymLearner
-)
 
+from loglens.detection.embeddings import EmbeddingEngine, extract_features
+from loglens.detection.synonyms import (
+    SynonymLearner,
+    detect_unknown_word,
+    normalize_message,
+    split_camel_case,
+)
+from loglens.domain.models import LogEntry
 
 # --- helpers ---
+
 
 def make_entry(msg: str) -> LogEntry:
     return LogEntry(
@@ -36,6 +39,7 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
 
 # --- shape tests ---
 
+
 def test_embed_returns_correct_shape():
     """Use varied entries so TF-IDF can build a proper vocabulary."""
     engine = EmbeddingEngine()
@@ -56,15 +60,16 @@ def test_single_entry_embed():
 
 # --- similarity tests ---
 
+
 def test_similar_messages_are_close():
     engine = EmbeddingEngine()
     entries = [
         make_entry("database connection timeout"),
         make_entry("database connection timeout after 30s"),  # similar
-        make_entry("user login successful uid=1042"),          # different
+        make_entry("user login successful uid=1042"),  # different
     ]
     vectors = engine.embed(entries)
-    sim_similar   = np.dot(vectors[0], vectors[1])
+    sim_similar = np.dot(vectors[0], vectors[1])
     sim_different = np.dot(vectors[0], vectors[2])
     assert sim_similar > sim_different
 
@@ -78,13 +83,15 @@ def test_synonym_normalization():
         make_entry("user login successful uid=1042"),
     ]
     vectors = engine.embed(entries)
-    sim_synonym   = cosine_similarity(vectors[0], vectors[1])
+    sim_synonym = cosine_similarity(vectors[0], vectors[1])
     sim_different = cosine_similarity(vectors[0], vectors[2])
-    assert sim_synonym > sim_different, \
+    assert sim_synonym > sim_different, (
         f"Synonym similarity {sim_synonym:.3f} should be > {sim_different:.3f}"
+    )
 
 
 # --- accuracy tests ---
+
 
 def test_severity_separation():
     """ERROR logs should be far from INFO logs."""
@@ -97,17 +104,18 @@ def test_severity_separation():
     vectors = engine.embed(entries)
     sim_error_info = cosine_similarity(vectors[0], vectors[1])
     sim_info_debug = cosine_similarity(vectors[1], vectors[2])
-    assert sim_error_info < sim_info_debug, \
+    assert sim_error_info < sim_info_debug, (
         f"ERROR/INFO sim {sim_error_info:.3f} should be < INFO/DEBUG sim {sim_info_debug:.3f}"
+    )
 
 
 def test_feature_detection():
     """Specific features should score correctly."""
     error_entry = make_entry_with_level("connection refused error crash after 30s", "ERROR")
-    info_entry  = make_entry_with_level("user login successful", "INFO")
+    info_entry = make_entry_with_level("user login successful", "INFO")
 
     error_features = extract_features(error_entry)
-    info_features  = extract_features(info_entry)
+    info_features = extract_features(info_entry)
 
     assert error_features[0] > info_features[0], "ERROR level score should be higher"
     assert error_features[1] > info_features[1], "Error keyword score should be higher"
@@ -139,6 +147,7 @@ def test_ip_detection():
 
 
 # --- synonym learner tests ---
+
 
 def test_base_synonym_normalization():
     """Known abbreviations should be expanded."""
@@ -191,8 +200,9 @@ def test_auto_synonym_learning():
     ]
     learner.fit(messages)
     learned = learner.get_all_synonyms()
-    assert learned.get("cxn") == "connection", \
+    assert learned.get("cxn") == "connection", (
         f"Expected 'cxn' → 'connection', got: {learned.get('cxn')}"
+    )
 
 
 def test_learned_synonyms_improve_similarity():
@@ -218,28 +228,30 @@ def test_learned_synonyms_improve_similarity():
         make_entry("user login successful"),
     ]
     vectors = engine.embed(entries)
-    sim_synonym   = cosine_similarity(vectors[0], vectors[1])
+    sim_synonym = cosine_similarity(vectors[0], vectors[1])
     sim_different = cosine_similarity(vectors[0], vectors[2])
-    assert sim_synonym > sim_different, \
+    assert sim_synonym > sim_different, (
         f"Learned synonym similarity {sim_synonym:.3f} should be > {sim_different:.3f}"
+    )
+
 
 def is_sentence_transformers_available() -> bool:
-    try:
-        import sentence_transformers
-        return True
-    except ImportError:
-        return False
+    import importlib.util
+
+    return importlib.util.find_spec("sentence_transformers") is not None
+
 
 skip_if_no_st = pytest.mark.skipif(
     not is_sentence_transformers_available(),
-    reason="sentence-transformers not installed — run: pip install sentence-transformers"
+    reason="sentence-transformers not installed — run: pip install sentence-transformers",
 )
 
 
 @skip_if_no_st
 def test_deep_embed_returns_correct_shape():
     """Deep mode should return (n, 430) = 384 semantic + 32 tfidf + 14 log features."""
-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
+    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
+
     engine = DeepEmbeddingEngine()
     entries = [
         make_entry("database connection timeout after 30s"),
@@ -248,24 +260,26 @@ def test_deep_embed_returns_correct_shape():
     ]
     vectors = engine.embed(entries)
     assert vectors.shape[0] == 3
-    assert vectors.shape[1] == 430   # 384 semantic + 32 tfidf + 14 features
+    assert vectors.shape[1] == 430  # 384 semantic + 32 tfidf + 14 features
 
 
 @skip_if_no_st
 def test_deep_similar_messages_are_close():
     """Semantically similar messages should have high cosine similarity."""
-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
+    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
+
     engine = DeepEmbeddingEngine()
     entries = [
         make_entry("database connection timeout"),
-        make_entry("db conn timed out"),        # same meaning, different words
+        make_entry("db conn timed out"),  # same meaning, different words
         make_entry("user logged in successfully"),  # completely different
     ]
     vectors = engine.embed(entries)
-    sim_similar   = cosine_similarity(vectors[0], vectors[1])
+    sim_similar = cosine_similarity(vectors[0], vectors[1])
     sim_different = cosine_similarity(vectors[0], vectors[2])
-    assert sim_similar > sim_different, \
+    assert sim_similar > sim_different, (
         f"Similar sim {sim_similar:.3f} should be > different sim {sim_different:.3f}"
+    )
 
 
 @skip_if_no_st
@@ -274,24 +288,27 @@ def test_deep_beats_tfidf_on_unseen_synonyms():
     Deep mode should handle unseen synonyms better than TF-IDF.
     'latency spike' vs 'slow response' — TF-IDF fails, deep succeeds.
     """
-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
+    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
+
     engine = DeepEmbeddingEngine()
     entries = [
         make_entry("latency spike detected on api gateway"),
         make_entry("slow response detected on api gateway"),  # same meaning
-        make_entry("user account created successfully"),       # different
+        make_entry("user account created successfully"),  # different
     ]
     vectors = engine.embed(entries)
-    sim_semantic  = cosine_similarity(vectors[0], vectors[1])
+    sim_semantic = cosine_similarity(vectors[0], vectors[1])
     sim_different = cosine_similarity(vectors[0], vectors[2])
-    assert sim_semantic > sim_different, \
+    assert sim_semantic > sim_different, (
         f"Semantic sim {sim_semantic:.3f} should be > different sim {sim_different:.3f}"
+    )
 
 
 @skip_if_no_st
 def test_deep_severity_separation():
     """ERROR should be far from DEBUG even in deep mode."""
-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
+    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
+
     engine = DeepEmbeddingEngine()
     entries = [
         make_entry_with_level("database connection timeout", "ERROR"),
@@ -301,14 +318,16 @@ def test_deep_severity_separation():
     vectors = engine.embed(entries)
     sim_error_info = cosine_similarity(vectors[0], vectors[1])
     sim_info_debug = cosine_similarity(vectors[1], vectors[2])
-    assert sim_error_info < sim_info_debug, \
+    assert sim_error_info < sim_info_debug, (
         f"ERROR/INFO sim {sim_error_info:.3f} should be < INFO/DEBUG sim {sim_info_debug:.3f}"
+    )
 
 
 @skip_if_no_st
 def test_deep_unit_vectors():
     """All deep embeddings should be unit vectors (normalized)."""
-    from loglens.pipeline.deep_embeddings import DeepEmbeddingEngine
+    from loglens.detection.deep_embeddings import DeepEmbeddingEngine
+
     engine = DeepEmbeddingEngine()
     entries = [
         make_entry("error connecting to database"),
@@ -318,5 +337,4 @@ def test_deep_unit_vectors():
     vectors = engine.embed(entries)
     for i, vec in enumerate(vectors):
         norm = np.linalg.norm(vec)
-        assert abs(norm - 1.0) < 1e-5, \
-            f"Vector {i} is not unit length: norm={norm:.6f}"
+        assert abs(norm - 1.0) < 1e-5, f"Vector {i} is not unit length: norm={norm:.6f}"
